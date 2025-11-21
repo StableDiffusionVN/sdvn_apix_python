@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>aPix Image Workspace</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Playwrite+AU+SA&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <h1>aPix</h1>
+                <span class="badge">Creative Studio</span>
+            </div>
+
+            <div class="controls-section">
+                <div class="input-group">
+                    <label for="api-key">API Key</label>
+                    <input type="password" id="api-key" placeholder="Google Cloud API Key">
+                </div>
+
+                <div class="input-group">
+                    <label for="prompt">Prompt</label>
+                    <textarea id="prompt" placeholder="Describe your imagination..." rows="6"></textarea>
+                </div>
+
+                <div class="input-group image-inputs">
+                    <div class="image-input-header">
+                        <label>Reference Images (optional)</label>
+                        <span>Drag & drop up to 16 files</span>
+                    </div>
+                    <div id="image-input-grid" class="image-input-grid" aria-live="polite"></div>
+                </div>
+
+                <div class="input-group">
+                    <label for="aspect-ratio">Aspect Ratio</label>
+                    <select id="aspect-ratio">
+                        <option value="Auto">Auto (Default)</option>
+                        <option value="1:1">1:1 (Square)</option>
+                        <option value="16:9">16:9 (Widescreen)</option>
+                        <option value="4:3">4:3 (Standard)</option>
+                        <option value="3:4">3:4 (Portrait)</option>
+                        <option value="9:16">9:16 (Mobile)</option>
+                        <option value="2:3">2:3</option>
+                        <option value="3:2">3:2</option>
+                        <option value="4:5">4:5</option>
+                        <option value="5:4">5:4</option>
+                        <option value="21:9">21:9 (Cinema)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="resolution">Resolution</label>
+                    <select id="resolution">
+                        <option value="2K" selected>2K</option>
+                        <option value="1K">1K</option>
+                        <option value="4K">4K</option>
+                    </select>
+                </div>
+
+            </div>
+        </aside>
+        <div class="content-area">
+            <div class="top-toolbar">
+                <div class="toolbar-info">
+                    <button type="button" class="toolbar-info-btn">Info</button>
+                    <button type="button" class="toolbar-info-btn">Docs</button>
+                    <button type="button" class="toolbar-info-btn" disabled>Preview</button>
+                </div>
+                <div class="toolbar-generate">
+                    <button id="generate-btn">
+                        <span>Generate</span>
+                        <div class="btn-shine"></div>
+                    </button>
+                </div>
+            </div>
+            <main class="main-content">
+                <div class="image-display-area">
+                    <div id="placeholder-state" class="state-view">
+                        <div class="icon-placeholder"></div>
+                    </div>
+
+                    <div id="loading-state" class="state-view hidden">
+                        <div class="spinner"></div>
+                        <p>Creating masterpiece...</p>
+                    </div>
+
+                    <div id="error-state" class="state-view hidden">
+                        <div class="error-icon">⚠️</div>
+                        <p id="error-text"></p>
+                    </div>
+
+                    <div id="result-state" class="state-view hidden">
+                        <img id="generated-image" src="" alt="Generated Image">
+                        <div class="canvas-toolbar" role="toolbar">
+                            <button type="button" class="canvas-btn" data-action="zoom-out">−</button>
+                            <button type="button" class="canvas-btn" data-action="zoom-in">＋</button>
+                            <button type="button" class="canvas-btn icon-btn" data-action="zoom-reset" aria-label="Reset view">↺</button>
+                            <a id="download-link" href="#" download="gemini_image.png" class="canvas-btn icon-btn" aria-label="Download image">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12.5535 16.5061C12.4114 16.6615 12.2106 16.75 12 16.75C11.7894 16.75 11.5886 16.6615 11.4465 16.5061L7.44648 12.1311C7.16698 11.8254 7.18822 11.351 7.49392 11.0715C7.79963 10.792 8.27402 10.8132 8.55352 11.1189L11.25 14.0682V3C11.25 2.58579 11.5858 2.25 12 2.25C12.4142 2.25 12.75 2.58579 12.75 3V14.0682L15.4465 11.1189C15.726 10.8132 16.2004 10.792 16.5061 11.0715C16.8118 11.351 16.833 11.8254 16.5535 12.1311L12.5535 16.5061Z" fill="currentColor"/>
+                                    <path d="M3.75 15C3.75 14.5858 3.41422 14.25 3 14.25C2.58579 14.25 2.25 14.5858 2.25 15V15.0549C2.24998 16.4225 2.24996 17.5248 2.36652 18.3918C2.48754 19.2919 2.74643 20.0497 3.34835 20.6516C3.95027 21.2536 4.70814 21.5125 5.60825 21.6335C6.47522 21.75 7.57754 21.75 8.94513 21.75H15.0549C16.4225 21.75 17.5248 21.75 18.3918 21.6335C19.2919 21.5125 20.0497 21.2536 20.6517 20.6516C21.2536 20.0497 21.5125 19.2919 21.6335 18.3918C21.75 17.5248 21.75 16.4225 21.75 15.0549V15C21.75 14.5858 21.4142 14.25 21 14.25C20.5858 14.25 20.25 14.5858 20.25 15C20.25 16.4354 20.2484 17.4365 20.1469 18.1919C20.0482 18.9257 19.8678 19.3142 19.591 19.591C19.3142 19.8678 18.9257 20.0482 18.1919 20.1469C17.4365 20.2484 16.4354 20.25 15 20.25H9C7.56459 20.25 6.56347 20.2484 5.80812 20.1469C5.07435 20.0482 4.68577 19.8678 4.40901 19.591C4.13225 19.3142 3.9518 18.9257 3.85315 18.1919C3.75159 17.4365 3.75 16.4354 3.75 15Z" fill="currentColor"/>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            <section class="history-section">
+                <h3>History</h3>
+                <div id="gallery-grid" class="gallery-grid">
+                    <!-- Gallery items will be injected here -->
+                </div>
+            </section>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
