@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadGallery();
-    setupSidebarResizer(sidebar, resizeHandle);
+    initializeSidebarResizer(sidebar, resizeHandle);
 
     function setViewState(state) {
         placeholderState.classList.add('hidden');
@@ -317,6 +317,32 @@ document.addEventListener('DOMContentLoaded', () => {
             await gallery.load();
         } catch (error) {
             console.error('Unable to populate gallery', error);
+        }
+    }
+
+    function initializeSidebarResizer(sidebar, handle) {
+        if (!sidebar || !handle) return;
+        const resizerQuery = window.matchMedia('(min-width: 1025px)');
+        let resizerCleanup = null;
+
+        const toggleResizer = () => {
+            if (resizerQuery.matches) {
+                if (!resizerCleanup) {
+                    resizerCleanup = setupSidebarResizer(sidebar, handle);
+                }
+            } else if (resizerCleanup) {
+                resizerCleanup();
+                resizerCleanup = null;
+                sidebar.style.width = '';
+            }
+        };
+
+        toggleResizer();
+        if (typeof resizerQuery.addEventListener === 'function') {
+            resizerQuery.addEventListener('change', toggleResizer);
+        }
+        if (typeof resizerQuery.addListener === 'function') {
+            resizerQuery.addListener(toggleResizer);
         }
     }
 
@@ -483,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupSidebarResizer(sidebar, handle) {
-        if (!sidebar || !handle) return;
+        if (!sidebar || !handle) return null;
         let isResizing = false;
         let activePointerId = null;
 
@@ -508,21 +534,31 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.style.cursor = '';
         };
 
-        handle.addEventListener('pointerdown', (event) => {
+        const onPointerDown = (event) => {
             isResizing = true;
             activePointerId = event.pointerId;
             handle.setPointerCapture(activePointerId);
             document.body.style.cursor = 'ew-resize';
             event.preventDefault();
-        });
+        };
 
-        document.addEventListener('pointermove', (event) => {
+        const onPointerMove = (event) => {
             if (!isResizing) return;
             updateWidth(event.clientX);
-        });
+        };
 
+        handle.addEventListener('pointerdown', onPointerDown);
+        document.addEventListener('pointermove', onPointerMove);
         document.addEventListener('pointerup', stopResize);
         document.addEventListener('pointercancel', stopResize);
+
+        return () => {
+            stopResize();
+            handle.removeEventListener('pointerdown', onPointerDown);
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', stopResize);
+            document.removeEventListener('pointercancel', stopResize);
+        };
     }
 
 });
