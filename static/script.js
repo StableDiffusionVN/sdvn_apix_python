@@ -23,6 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedReferenceImages = [];
     const imageDisplayArea = document.querySelector('.image-display-area');
     const canvasToolbar = document.querySelector('.canvas-toolbar');
+    const popupOverlay = document.getElementById('popup-overlay');
+    const popupTitleEl = document.getElementById('popup-title');
+    const popupBodyEl = document.getElementById('popup-body');
+    const popupCloseBtn = document.getElementById('popup-close');
+    const popupButtons = document.querySelectorAll('[data-popup-target]');
     const ZOOM_STEP = 0.1;
     const MIN_ZOOM = 0.4;
     const MAX_ZOOM = 4;
@@ -30,6 +35,48 @@ document.addEventListener('DOMContentLoaded', () => {
     let panOffset = { x: 0, y: 0 };
     let isPanning = false;
     let lastPointer = { x: 0, y: 0 };
+
+    const infoContent = {
+        title: 'Thông tin',
+        sections: [
+            {
+                heading: 'Liên hệ',
+                items: [
+                    'Người tạo: Phạm Hưng',
+                    'Group: <a href="https://www.facebook.com/groups/stablediffusion.vn/" target="_blank" rel="noreferrer">SDVN - Cộng đồng AI Art</a>',
+                    'Website: <a href="https://sdvn.vn" target="_blank" rel="noreferrer">sdvn.vn</a>',
+                ],
+            },
+        ],
+    };
+
+    const docsContent = {
+        title: 'Phím tắt và mẹo',
+        sections: [
+            {
+                heading: 'Phím tắt',
+                items: [
+                    'Ctrl/Cmd + Enter → tạo ảnh mới',
+                    'D → tải ảnh hiện tại',
+                    'R → reset zoom/pan vùng hiển thị ảnh',
+                    'Esc → đóng popup thông tin/docs',
+                ],
+            },
+            {
+                heading: 'Thao tác nhanh',
+                items: [
+                    'Kéo ảnh từ lịch sử vào ô tham chiếu để tái sử dụng',
+                    'Tùy chỉnh tỉ lệ và độ phân giải trước khi nhấn Generate',
+                    'API key và prompt được lưu để lần sau không phải nhập lại',
+                ],
+            },
+        ],
+    };
+
+    const POPUP_CONTENT = {
+        info: infoContent,
+        docs: docsContent,
+    };
 
     // Load gallery on start
     loadSettings();
@@ -189,11 +236,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
                     div.classList.add('active');
                 };
-                
+
                 const img = document.createElement('img');
                 img.src = withCacheBuster(imageUrl);
                 img.loading = 'lazy';
-                
+                img.draggable = true;
+                img.dataset.source = imageUrl;
+                img.addEventListener('dragstart', event => {
+                    event.dataTransfer?.setData('text/uri-list', imageUrl);
+                    event.dataTransfer?.setData('text/plain', imageUrl);
+                    if (event.dataTransfer) {
+                        event.dataTransfer.effectAllowed = 'copy';
+                    }
+                });
+
                 div.appendChild(img);
                 galleryGrid.appendChild(div);
             });
@@ -456,12 +512,19 @@ document.addEventListener('DOMContentLoaded', () => {
             slot.classList.remove('drag-over');
         });
 
-        slot.addEventListener('drop', event => {
+        slot.addEventListener('drop', async event => {
             event.preventDefault();
             slot.classList.remove('drag-over');
             const file = event.dataTransfer?.files?.[0];
             if (file) {
                 handleSlotFile(index, file);
+                return;
+            }
+
+            const imageUrl = event.dataTransfer?.getData('text/uri-list')
+                || event.dataTransfer?.getData('text/plain');
+            if (imageUrl) {
+                await handleSlotDropFromHistory(index, imageUrl);
             }
         });
 
@@ -491,6 +554,24 @@ document.addEventListener('DOMContentLoaded', () => {
             maybeAddSlot();
         };
         reader.readAsDataURL(file);
+    }
+
+    async function handleSlotDropFromHistory(index, imageUrl) {
+        try {
+            const response = await fetch(withCacheBuster(imageUrl));
+            if (!response.ok) {
+                console.warn('Failed to fetch history image', response.statusText);
+                return;
+            }
+
+            const blob = await response.blob();
+            const name = imageUrl.split('/').pop()?.split('?')[0] || `history-${index + 1}.png`;
+            const type = blob.type || 'image/png';
+            const file = new File([blob], name, { type });
+            handleSlotFile(index, file);
+        } catch (error) {
+            console.error('Unable to import history image', error);
+        }
     }
 
     function updateSlotVisual(index) {
@@ -579,5 +660,58 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('Unable to convert cached image to blob', error);
             return null;
         }
+    }
+
+    popupButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const target = button.dataset.popupTarget;
+            if (target) {
+                showPopup(target);
+            }
+        });
+    });
+
+    if (popupCloseBtn) {
+        popupCloseBtn.addEventListener('click', closePopup);
+    }
+
+    if (popupOverlay) {
+        popupOverlay.addEventListener('click', event => {
+            if (event.target === popupOverlay) {
+                closePopup();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && popupOverlay && !popupOverlay.classList.contains('hidden')) {
+            event.preventDefault();
+            closePopup();
+        }
+    });
+
+    function showPopup(type) {
+        const content = POPUP_CONTENT[type];
+        if (!content || !popupOverlay || !popupBodyEl || !popupTitleEl) return;
+
+        popupTitleEl.textContent = content.title;
+        popupBodyEl.innerHTML = content.sections
+            .map(section => {
+                const items = (section.items || []).map(item => `<li>${item}</li>`).join('');
+                return `
+                    <section class="popup-section">
+                        <h3>${section.heading}</h3>
+                        <ul>${items}</ul>
+                    </section>
+                `;
+            })
+            .join('');
+
+        popupOverlay.classList.remove('hidden');
+    }
+
+    function closePopup() {
+        if (!popupOverlay) return;
+        popupOverlay.classList.add('hidden');
     }
 });

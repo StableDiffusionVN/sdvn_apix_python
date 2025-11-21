@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>aPix Image Workspace</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='sdvn-logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,69 +16,68 @@
     <div class="app-container">
         <aside class="sidebar">
             <div class="brand">
-                <h1>aPix</h1>
-                <span class="badge">Creative Studio</span>
+                <h1>aPix <span class="badge">by SDVN</span></h1>
             </div>
 
             <div class="controls-section">
-                <div class="input-group">
-                    <label for="api-key">API Key</label>
-                    <input type="password" id="api-key" placeholder="Google Cloud API Key">
-                </div>
-
-                <div class="input-group">
-                    <label for="prompt">Prompt</label>
-                    <textarea id="prompt" placeholder="Describe your imagination..." rows="6"></textarea>
-                </div>
-
-                <div class="input-group image-inputs">
-                    <div class="image-input-header">
-                        <label>Reference Images (optional)</label>
-                        <span>Drag & drop up to 16 files</span>
+                <div class="controls-content">
+                    <div class="input-group">
+                        <label for="api-key">API Key</label>
+                        <input type="password" id="api-key" placeholder="Google Cloud API Key">
                     </div>
-                    <div id="image-input-grid" class="image-input-grid" aria-live="polite"></div>
-                </div>
 
-                <div class="input-group">
-                    <label for="aspect-ratio">Aspect Ratio</label>
-                    <select id="aspect-ratio">
-                        <option value="Auto">Auto (Default)</option>
-                        <option value="1:1">1:1 (Square)</option>
-                        <option value="16:9">16:9 (Widescreen)</option>
-                        <option value="4:3">4:3 (Standard)</option>
-                        <option value="3:4">3:4 (Portrait)</option>
-                        <option value="9:16">9:16 (Mobile)</option>
-                        <option value="2:3">2:3</option>
-                        <option value="3:2">3:2</option>
-                        <option value="4:5">4:5</option>
-                        <option value="5:4">5:4</option>
-                        <option value="21:9">21:9 (Cinema)</option>
-                    </select>
-                </div>
+                    <div class="input-group">
+                        <label for="prompt">Prompt</label>
+                        <textarea id="prompt" placeholder="Describe your imagination..." rows="6"></textarea>
+                    </div>
 
-                <div class="input-group">
-                    <label for="resolution">Resolution</label>
-                    <select id="resolution">
-                        <option value="2K" selected>2K</option>
-                        <option value="1K">1K</option>
-                        <option value="4K">4K</option>
-                    </select>
-                </div>
+                    <div class="input-group image-inputs">
+                        <div class="image-input-header">
+                            <label>Reference Images (optional)</label>
+                            <span>Drag & drop up to 16 files</span>
+                        </div>
+                        <div id="image-input-grid" class="image-input-grid" aria-live="polite"></div>
+                    </div>
 
+                    <div class="input-group">
+                        <label for="aspect-ratio">Aspect Ratio</label>
+                        <select id="aspect-ratio">
+                            <option value="Auto">Auto (Default)</option>
+                            <option value="1:1">1:1 (Square)</option>
+                            <option value="16:9">16:9 (Widescreen)</option>
+                            <option value="4:3">4:3 (Standard)</option>
+                            <option value="3:4">3:4 (Portrait)</option>
+                            <option value="9:16">9:16 (Mobile)</option>
+                            <option value="2:3">2:3</option>
+                            <option value="3:2">3:2</option>
+                            <option value="4:5">4:5</option>
+                            <option value="5:4">5:4</option>
+                            <option value="21:9">21:9 (Cinema)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="resolution">Resolution</label>
+                        <select id="resolution">
+                            <option value="2K" selected>2K</option>
+                            <option value="1K">1K</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="controls-footer">
+                    <button id="generate-btn">
+                        <span>Generate</span>
+                        <div class="btn-shine"></div>
+                    </button>
+                </div>
             </div>
         </aside>
         <div class="content-area">
             <div class="top-toolbar">
                 <div class="toolbar-info">
-                    <button type="button" class="toolbar-info-btn">Info</button>
-                    <button type="button" class="toolbar-info-btn">Docs</button>
-                    <button type="button" class="toolbar-info-btn" disabled>Preview</button>
-                </div>
-                <div class="toolbar-generate">
-                    <button id="generate-btn">
-                        <span>Generate</span>
-                        <div class="btn-shine"></div>
-                    </button>
+                    <button type="button" class="toolbar-info-btn" data-popup-target="docs">Docs</button>
+                    <button type="button" class="toolbar-info-btn" data-popup-target="info">Info</button>
                 </div>
             </div>
             <main class="main-content">
@@ -118,6 +118,15 @@
                     <!-- Gallery items will be injected here -->
                 </div>
             </section>
+        </div>
+    </div>
+    <div id="popup-overlay" class="popup-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="popup-title">
+        <div class="popup-card">
+            <header class="popup-header">
+                <h2 id="popup-title"></h2>
+                <button id="popup-close" type="button" class="popup-close" aria-label="Close">&times;</button>
+            </header>
+            <div id="popup-body" class="popup-body"></div>
         </div>
     </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
