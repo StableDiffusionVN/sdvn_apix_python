@@ -16,7 +16,7 @@ aPix Image Workspace là một giao diện Flask nhẹ giúp bạn tạo hình �
 
 ### Khởi chạy nhanh bằng `run_app`
 1. Đặt `GOOGLE_API_KEY` qua biến môi trường hoặc giao diện.
-2. Dùng `./run_app.sh` (macOS/Linux) hoặc `run_app.bat`/`run_app.command` (Windows) để tự động tìm Python, tạo `.venv`, cài `requirements.txt` và khởi động `app.py`.
+2. Nháy đúp vào `run_app.command` trên macOS, `run_app.sh` trên Linux, hoặc `run_app.bat` trên Windows để tự động tìm Python, tạo `.venv`, cài `requirements.txt` và khởi động `app.py`.
 3. Mở `http://127.0.0.1:8888`, nhập prompt/tùy chọn rồi nhấn Generate.
 4. Hình ảnh mới nằm trong `static/generated/`; `/gallery` thể hiện lịch sử.
 
@@ -46,7 +46,6 @@ The preview screenshot is also stored as `preview.jpeg` in the repo for offline 
 
 ### Quick start via `run_app`
 1. Export `GOOGLE_API_KEY` via your environment or the UI form.
-2. On macOS/Linux run `./run_app.sh` (or `run_app.command`); on Windows use `run_app.bat` or `run_app.command`.
-   - The script detects `python3`/`python`, creates `.venv`, installs `requirements.txt`, activates the virtualenv, and then launches `app.py`.
+2. Double-click `run_app.command` on macOS, `run_app.sh` on Linux, or `run_app.bat` on Windows; each script auto-detects Python, creates `.venv`, installs `requirements.txt`, activates the virtualenv, and launches `app.py`.
 3. Open `http://127.0.0.1:8888`, submit prompts/options, and click Generate.
 4. New images appear under `static/generated/`, and `/gallery` exposes the history.
