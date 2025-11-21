@@ -3,7 +3,9 @@ import base64
 import uuid
 import glob
 import json
+from datetime import datetime
 from io import BytesIO
+from send2trash import send2trash
 from flask import Flask, render_template, request, jsonify, url_for
 from google import genai
 from google.genai import types
@@ -145,8 +147,9 @@ def generate_image():
                     print(f"Error processing uploaded file: {e}")
                     continue
 
+        model_name = "gemini-3-pro-image-preview"
         response = client.models.generate_content(
-            model="gemini-3-pro-image-preview",
+            model=model_name,
             contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=['IMAGE'],
@@ -161,7 +164,25 @@ def generate_image():
                 image = Image.open(BytesIO(image_bytes))
                 png_info = PngImagePlugin.PngInfo()
 
-                filename = f"{uuid.uuid4()}.png"
+                date_str = datetime.now().strftime("%Y%m%d")
+                
+                # Find existing files to determine next ID
+                search_pattern = os.path.join(GENERATED_DIR, f"{model_name}_{date_str}_*.png")
+                existing_files = glob.glob(search_pattern)
+                max_id = 0
+                for f in existing_files:
+                    try:
+                        basename = os.path.basename(f)
+                        name_without_ext = os.path.splitext(basename)[0]
+                        id_part = name_without_ext.split('_')[-1]
+                        id_num = int(id_part)
+                        if id_num > max_id:
+                            max_id = id_num
+                    except ValueError:
+                        continue
+                
+                next_id = max_id + 1
+                filename = f"{model_name}_{date_str}_{next_id}.png"
                 filepath = os.path.join(GENERATED_DIR, filename)
                 rel_path = os.path.join('generated', filename)
                 image_url = url_for('static', filename=rel_path)
@@ -209,7 +230,7 @@ def delete_image():
     
     if os.path.exists(filepath):
         try:
-            os.remove(filepath)
+            send2trash(filepath)
             return jsonify({'success': True})
         except Exception as e:
             return jsonify({'error': str(e)}), 500

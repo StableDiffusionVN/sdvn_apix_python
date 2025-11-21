@@ -61,7 +61,7 @@ export function createGallery({ galleryGrid, onSelect }) {
                 deleteBtn.title = 'Delete image';
                 deleteBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    if (!confirm('Are you sure you want to delete this image?')) return;
+
                     
                     const filename = imageUrl.split('/').pop().split('?')[0];
                     try {

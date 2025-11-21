@@ -1,3 +1,4 @@
 flask
 google-genai
 pillow
+Send2Trash
