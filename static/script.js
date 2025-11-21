@@ -1,87 +1,106 @@
+import { withCacheBuster, clamp } from './modules/utils.js';
+import { createGallery } from './modules/gallery.js';
+import { createReferenceSlotManager } from './modules/referenceSlots.js';
+import { setupHelpPopups } from './modules/popup.js';
+import { extractMetadataFromBlob } from './modules/metadata.js';
+
+const SETTINGS_STORAGE_KEY = 'gemini-image-app-settings';
+const ZOOM_STEP = 0.1;
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 4;
+
+const infoContent = {
+    title: 'Thông tin',
+    sections: [
+        {
+            heading: 'Liên hệ',
+            items: [
+                'Người tạo: Phạm Hưng',
+                'Group: <a href="https://www.facebook.com/groups/stablediffusion.vn/" target="_blank" rel="noreferrer">SDVN - Cộng đồng AI Art</a>',
+                'Website: <a href="https://sdvn.vn" target="_blank" rel="noreferrer">sdvn.vn</a>',
+            ],
+        },
+    ],
+};
+
+const docsContent = {
+    title: 'Phím tắt và mẹo',
+    sections: [
+        {
+            heading: 'Phím tắt',
+            items: [
+                'Ctrl/Cmd + Enter → tạo ảnh mới',
+                'D → tải ảnh hiện tại',
+                'D → tải ảnh hiện tại',
+                'Space → reset zoom/pan vùng hiển thị ảnh',
+                'Esc → đóng popup thông tin/docs',
+            ],
+        },
+        {
+            heading: 'Thao tác nhanh',
+            items: [
+                'Kéo ảnh từ lịch sử vào ô tham chiếu để tái sử dụng',
+                'Tùy chỉnh tỉ lệ và độ phân giải trước khi nhấn Generate',
+                'API key và prompt được lưu để lần sau không phải nhập lại',
+            ],
+        },
+    ],
+};
+
+const POPUP_CONTENT = {
+    info: infoContent,
+    docs: docsContent,
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn');
     const promptInput = document.getElementById('prompt');
     const aspectRatioInput = document.getElementById('aspect-ratio');
     const resolutionInput = document.getElementById('resolution');
     const apiKeyInput = document.getElementById('api-key');
-    
-    // States
+
     const placeholderState = document.getElementById('placeholder-state');
     const loadingState = document.getElementById('loading-state');
     const errorState = document.getElementById('error-state');
     const resultState = document.getElementById('result-state');
-    
     const errorText = document.getElementById('error-text');
     const generatedImage = document.getElementById('generated-image');
     const downloadLink = document.getElementById('download-link');
     const galleryGrid = document.getElementById('gallery-grid');
     const imageInputGrid = document.getElementById('image-input-grid');
-    const SETTINGS_STORAGE_KEY = 'gemini-image-app-settings';
-    const MAX_IMAGE_SLOTS = 16;
-    const INITIAL_IMAGE_SLOTS = 4;
-    const imageSlotState = [];
-    let cachedReferenceImages = [];
     const imageDisplayArea = document.querySelector('.image-display-area');
     const canvasToolbar = document.querySelector('.canvas-toolbar');
-    const popupOverlay = document.getElementById('popup-overlay');
-    const popupTitleEl = document.getElementById('popup-title');
-    const popupBodyEl = document.getElementById('popup-body');
-    const popupCloseBtn = document.getElementById('popup-close');
-    const popupButtons = document.querySelectorAll('[data-popup-target]');
-    const ZOOM_STEP = 0.1;
-    const MIN_ZOOM = 0.4;
-    const MAX_ZOOM = 4;
+
     let zoomLevel = 1;
     let panOffset = { x: 0, y: 0 };
     let isPanning = false;
     let lastPointer = { x: 0, y: 0 };
 
-    const infoContent = {
-        title: 'Thông tin',
-        sections: [
-            {
-                heading: 'Liên hệ',
-                items: [
-                    'Người tạo: Phạm Hưng',
-                    'Group: <a href="https://www.facebook.com/groups/stablediffusion.vn/" target="_blank" rel="noreferrer">SDVN - Cộng đồng AI Art</a>',
-                    'Website: <a href="https://sdvn.vn" target="_blank" rel="noreferrer">sdvn.vn</a>',
-                ],
-            },
-        ],
-    };
+    const slotManager = createReferenceSlotManager(imageInputGrid, {
+        onChange: persistSettings,
+    });
 
-    const docsContent = {
-        title: 'Phím tắt và mẹo',
-        sections: [
-            {
-                heading: 'Phím tắt',
-                items: [
-                    'Ctrl/Cmd + Enter → tạo ảnh mới',
-                    'D → tải ảnh hiện tại',
-                    'R → reset zoom/pan vùng hiển thị ảnh',
-                    'Esc → đóng popup thông tin/docs',
-                ],
-            },
-            {
-                heading: 'Thao tác nhanh',
-                items: [
-                    'Kéo ảnh từ lịch sử vào ô tham chiếu để tái sử dụng',
-                    'Tùy chỉnh tỉ lệ và độ phân giải trước khi nhấn Generate',
-                    'API key và prompt được lưu để lần sau không phải nhập lại',
-                ],
-            },
-        ],
-    };
+    const gallery = createGallery({
+        galleryGrid,
+        onSelect: async ({ imageUrl, metadata }) => {
+            displayImage(imageUrl);
+            if (metadata) {
+                applyMetadata(metadata);
+            }
+        },
+    });
 
-    const POPUP_CONTENT = {
-        info: infoContent,
-        docs: docsContent,
-    };
+    setupHelpPopups({
+        buttonsSelector: '[data-popup-target]',
+        overlayId: 'popup-overlay',
+        titleId: 'popup-title',
+        bodyId: 'popup-body',
+        closeBtnId: 'popup-close',
+        content: POPUP_CONTENT,
+    });
 
-    // Load gallery on start
-    loadSettings();
-    initializeImageInputs();
-    loadGallery();
+    const savedSettings = loadSettings();
+    slotManager.initialize(savedSettings.referenceImages || []);
 
     apiKeyInput.addEventListener('input', persistSettings);
     promptInput.addEventListener('input', persistSettings);
@@ -99,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Set UI to loading
         setViewState('loading');
         generateBtn.disabled = true;
 
@@ -124,18 +142,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.image) {
                 displayImage(data.image, data.image_data);
-                // Refresh gallery to show new image
-                loadGallery();
+                gallery.load();
             } else {
                 throw new Error('No image data received');
             }
-
         } catch (error) {
             showError(error.message);
         } finally {
             generateBtn.disabled = false;
         }
     });
+
+    document.addEventListener('keydown', handleGenerateShortcut);
+    document.addEventListener('keydown', handleResetShortcut);
+    document.addEventListener('keydown', handleDownloadShortcut);
+
+    if (imageDisplayArea) {
+        imageDisplayArea.addEventListener('wheel', handleCanvasWheel, { passive: false });
+        imageDisplayArea.addEventListener('pointerdown', handleCanvasPointerDown);
+        
+        // Drag and drop support
+        imageDisplayArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            imageDisplayArea.classList.add('drag-over');
+        });
+
+        imageDisplayArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            imageDisplayArea.classList.remove('drag-over');
+        });
+
+        imageDisplayArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            imageDisplayArea.classList.remove('drag-over');
+            
+            const files = e.dataTransfer?.files;
+            if (files && files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/')) {
+                    try {
+                        // Display image immediately
+                        const objectUrl = URL.createObjectURL(file);
+                        displayImage(objectUrl);
+                        
+                        // Extract and apply metadata
+                        const metadata = await extractMetadataFromBlob(file);
+                        if (metadata) {
+                            applyMetadata(metadata);
+                        }
+                    } catch (error) {
+                        console.error('Error handling dropped image:', error);
+                    }
+                }
+            }
+            else {
+                const imageUrl = e.dataTransfer?.getData('text/uri-list')
+                    || e.dataTransfer?.getData('text/plain');
+                if (imageUrl) {
+                    await handleCanvasDropUrl(imageUrl.trim());
+                }
+            }
+        });
+    }
+
+    if (canvasToolbar) {
+        canvasToolbar.addEventListener('click', handleCanvasToolbarClick);
+    }
+
+    document.addEventListener('pointermove', handleCanvasPointerMove);
+    document.addEventListener('pointerup', () => {
+        if (isPanning && imageDisplayArea) {
+            imageDisplayArea.style.cursor = 'grab';
+        }
+        isPanning = false;
+    });
+    document.addEventListener('pointerleave', () => {
+        if (isPanning && imageDisplayArea) {
+            imageDisplayArea.style.cursor = 'grab';
+        }
+        isPanning = false;
+    });
+
+    loadGallery();
 
     function setViewState(state) {
         placeholderState.classList.add('hidden');
@@ -159,49 +247,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.addEventListener('keydown', handleGenerateShortcut);
-    document.addEventListener('keydown', handleResetShortcut);
-    document.addEventListener('keydown', handleDownloadShortcut);
-
-    function handleGenerateShortcut(event) {
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            event.preventDefault();
-            if (generateBtn && !generateBtn.disabled) {
-                generateBtn.click();
-            }
-        }
-    }
-
-    if (imageDisplayArea) {
-        imageDisplayArea.addEventListener('wheel', handleCanvasWheel, { passive: false });
-        imageDisplayArea.addEventListener('pointerdown', handleCanvasPointerDown);
-    }
-
-    if (canvasToolbar) {
-        canvasToolbar.addEventListener('click', handleCanvasToolbarClick);
-    }
-
-    document.addEventListener('pointermove', handleCanvasPointerMove);
-    document.addEventListener('pointerup', () => {
-        if (isPanning && imageDisplayArea) {
-            imageDisplayArea.style.cursor = 'grab';
-        }
-        isPanning = false;
-    });
-    document.addEventListener('pointerleave', () => {
-        if (isPanning && imageDisplayArea) {
-            imageDisplayArea.style.cursor = 'grab';
-        }
-        isPanning = false;
-    });
-
     function showError(message) {
         errorText.textContent = message;
         setViewState('error');
     }
 
     function displayImage(imageUrl, imageData) {
-        const cacheBustedUrl = withCacheBuster(imageUrl);
+        let cacheBustedUrl = imageUrl;
+        if (!imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:')) {
+            cacheBustedUrl = withCacheBuster(imageUrl);
+        }
 
         if (imageData) {
             generatedImage.src = `data:image/png;base64,${imageData}`;
@@ -220,47 +275,40 @@ document.addEventListener('DOMContentLoaded', () => {
         setViewState('result');
     }
 
-    async function loadGallery() {
+    async function handleCanvasDropUrl(imageUrl) {
+        const cleanedUrl = imageUrl;
+        displayImage(cleanedUrl);
         try {
-            const response = await fetch(`/gallery?t=${new Date().getTime()}`);
-            const data = await response.json();
-            
-            galleryGrid.innerHTML = '';
-            
-            data.images.forEach(imageUrl => {
-                const div = document.createElement('div');
-                div.className = 'gallery-item';
-                div.onclick = () => {
-                    displayImage(imageUrl);
-                    // Update active state
-                    document.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('active'));
-                    div.classList.add('active');
-                };
-
-                const img = document.createElement('img');
-                img.src = withCacheBuster(imageUrl);
-                img.loading = 'lazy';
-                img.draggable = true;
-                img.dataset.source = imageUrl;
-                img.addEventListener('dragstart', event => {
-                    event.dataTransfer?.setData('text/uri-list', imageUrl);
-                    event.dataTransfer?.setData('text/plain', imageUrl);
-                    if (event.dataTransfer) {
-                        event.dataTransfer.effectAllowed = 'copy';
-                    }
-                });
-
-                div.appendChild(img);
-                galleryGrid.appendChild(div);
-            });
+            const response = await fetch(withCacheBuster(cleanedUrl));
+            if (!response.ok) return;
+            const metadata = await extractMetadataFromBlob(await response.blob());
+            if (metadata) {
+                applyMetadata(metadata);
+            }
         } catch (error) {
-            console.error('Failed to load gallery:', error);
+            console.warn('Unable to read metadata from dropped image', error);
         }
     }
 
-    function withCacheBuster(url) {
-        const separator = url.includes('?') ? '&' : '?';
-        return `${url}${separator}t=${new Date().getTime()}`;
+    function applyMetadata(metadata) {
+        if (!metadata) return;
+        if (metadata.prompt) promptInput.value = metadata.prompt;
+        if (metadata.aspect_ratio) aspectRatioInput.value = metadata.aspect_ratio;
+        if (metadata.resolution) resolutionInput.value = metadata.resolution;
+        
+        if (metadata.reference_images && Array.isArray(metadata.reference_images)) {
+            slotManager.setReferenceImages(metadata.reference_images);
+        }
+        
+        persistSettings();
+    }
+
+    async function loadGallery() {
+        try {
+            await gallery.load();
+        } catch (error) {
+            console.error('Unable to populate gallery', error);
+        }
     }
 
     function buildGenerateFormData(fields) {
@@ -272,30 +320,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        imageSlotState.forEach(record => {
-            const slotFile = getSlotFile(record);
-            if (slotFile) {
-                formData.append('reference_images', slotFile, slotFile.name);
-            }
+        slotManager.getReferenceFiles().forEach(file => {
+            formData.append('reference_images', file, file.name);
         });
+        
+        const referencePaths = slotManager.getReferencePaths();
+        if (referencePaths && referencePaths.length > 0) {
+            formData.append('reference_image_paths', JSON.stringify(referencePaths));
+        }
 
         return formData;
     }
 
     function loadSettings() {
-        if (typeof localStorage === 'undefined') return;
+        if (typeof localStorage === 'undefined') return {};
         try {
             const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-            if (!saved) return;
+            if (!saved) return {};
 
             const { apiKey, aspectRatio, resolution, prompt, referenceImages } = JSON.parse(saved);
             if (apiKey) apiKeyInput.value = apiKey;
             if (aspectRatio) aspectRatioInput.value = aspectRatio;
             if (resolution) resolutionInput.value = resolution;
             if (prompt) promptInput.value = prompt;
-            cachedReferenceImages = Array.isArray(referenceImages) ? referenceImages : [];
+            return { apiKey, aspectRatio, resolution, prompt, referenceImages };
         } catch (error) {
             console.warn('Unable to load cached settings', error);
+            return {};
         }
     }
 
@@ -307,12 +358,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 aspectRatio: aspectRatioInput.value,
                 resolution: resolutionInput.value,
                 prompt: promptInput.value.trim(),
-                referenceImages: serializeReferenceImages(),
+                referenceImages: slotManager.serializeReferenceImages(),
             };
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
         } catch (error) {
             console.warn('Unable to persist settings', error);
         }
+    }
+
+    function handleGenerateShortcut(event) {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            event.preventDefault();
+            if (generateBtn && !generateBtn.disabled) {
+                generateBtn.click();
+            }
+        }
+    }
+
+    function handleResetShortcut(event) {
+        if (event.code !== 'Space' && event.key !== ' ') return;
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const targetTag = event.target?.tagName;
+        if (targetTag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag)) return;
+        if (event.target?.isContentEditable) return;
+        if (resultState.classList.contains('hidden')) return;
+        event.preventDefault();
+        resetView();
+    }
+
+    function handleDownloadShortcut(event) {
+        if (event.key !== 'd') return;
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const targetTag = event.target?.tagName;
+        if (targetTag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag)) return;
+        if (event.target?.isContentEditable) return;
+        if (resultState.classList.contains('hidden')) return;
+        event.preventDefault();
+        downloadLink.click();
     }
 
     function handleCanvasWheel(event) {
@@ -389,329 +471,5 @@ document.addEventListener('DOMContentLoaded', () => {
         zoomLevel = 1;
         panOffset = { x: 0, y: 0 };
         setImageTransform();
-    }
-
-    function clamp(value, min, max) {
-        return Math.min(Math.max(value, min), max);
-    }
-
-    function handleResetShortcut(event) {
-        if (event.key !== 'r') return;
-        if (event.ctrlKey || event.metaKey || event.altKey) return;
-        const targetTag = event.target?.tagName;
-        if (targetTag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag)) return;
-        if (event.target?.isContentEditable) return;
-        if (resultState.classList.contains('hidden')) return;
-        event.preventDefault();
-        resetView();
-    }
-
-    function handleDownloadShortcut(event) {
-        if (event.key !== 'd') return;
-        if (event.ctrlKey || event.metaKey || event.altKey) return;
-        const targetTag = event.target?.tagName;
-        if (targetTag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag)) return;
-        if (event.target?.isContentEditable) return;
-        if (resultState.classList.contains('hidden')) return;
-        event.preventDefault();
-        downloadLink.click();
-    }
-
-    function initializeImageInputs() {
-        if (!imageInputGrid) return;
-        const requiredSlots = Math.min(
-            MAX_IMAGE_SLOTS,
-            Math.max(INITIAL_IMAGE_SLOTS, cachedReferenceImages.length + 1)
-        );
-        for (let i = 0; i < requiredSlots; i++) {
-            addImageSlot();
-        }
-        cachedReferenceImages.forEach((cached, index) => {
-            applyCachedImageToSlot(index, cached);
-        });
-        maybeAddSlot();
-    }
-
-    function applyCachedImageToSlot(index, cached) {
-        if (!cached || !cached.dataUrl) return;
-        const slotRecord = imageSlotState[index];
-        if (!slotRecord) return;
-        slotRecord.data = {
-            file: null,
-            preview: cached.dataUrl,
-            cached: {
-                name: cached.name,
-                type: cached.type,
-                dataUrl: cached.dataUrl,
-            },
-        };
-        updateSlotVisual(index);
-    }
-
-    function addImageSlot() {
-        if (!imageInputGrid || imageSlotState.length >= MAX_IMAGE_SLOTS) return;
-        const index = imageSlotState.length;
-        const slotElement = createImageSlotElement(index);
-        imageSlotState.push({
-            slot: slotElement,
-            data: null,
-        });
-        imageInputGrid.appendChild(slotElement);
-    }
-
-    function createImageSlotElement(index) {
-        const slot = document.createElement('div');
-        slot.className = 'image-slot empty';
-        slot.dataset.index = index;
-
-        const placeholder = document.createElement('div');
-        placeholder.className = 'slot-placeholder';
-        placeholder.innerHTML = '<span class="slot-icon">+</span>';
-        slot.appendChild(placeholder);
-
-        const preview = document.createElement('img');
-        preview.className = 'slot-preview hidden';
-        preview.alt = 'Uploaded reference';
-        slot.appendChild(preview);
-
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'slot-remove hidden';
-        removeBtn.setAttribute('aria-label', 'Remove image');
-        removeBtn.textContent = '×';
-        slot.appendChild(removeBtn);
-
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.className = 'slot-input';
-        slot.appendChild(input);
-
-        slot.addEventListener('click', event => {
-            if (event.target === removeBtn) return;
-            input.click();
-        });
-
-        input.addEventListener('change', () => {
-            if (input.files && input.files.length) {
-                handleSlotFile(index, input.files[0]);
-            }
-        });
-
-        slot.addEventListener('dragenter', event => {
-            event.preventDefault();
-            slot.classList.add('drag-over');
-        });
-
-        slot.addEventListener('dragover', event => {
-            event.preventDefault();
-            slot.classList.add('drag-over');
-        });
-
-        slot.addEventListener('dragleave', () => {
-            slot.classList.remove('drag-over');
-        });
-
-        slot.addEventListener('drop', async event => {
-            event.preventDefault();
-            slot.classList.remove('drag-over');
-            const file = event.dataTransfer?.files?.[0];
-            if (file) {
-                handleSlotFile(index, file);
-                return;
-            }
-
-            const imageUrl = event.dataTransfer?.getData('text/uri-list')
-                || event.dataTransfer?.getData('text/plain');
-            if (imageUrl) {
-                await handleSlotDropFromHistory(index, imageUrl);
-            }
-        });
-
-        removeBtn.addEventListener('click', event => {
-            event.stopPropagation();
-            clearSlot(index);
-        });
-
-        return slot;
-    }
-
-    function handleSlotFile(index, file) {
-        if (!file || !file.type.startsWith('image/')) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            const previewUrl = reader.result;
-            if (typeof previewUrl !== 'string') return;
-            const slotRecord = imageSlotState[index];
-            if (!slotRecord) return;
-            slotRecord.data = {
-                file,
-                preview: previewUrl,
-                cached: null,
-            };
-            updateSlotVisual(index);
-            persistSettings();
-            maybeAddSlot();
-        };
-        reader.readAsDataURL(file);
-    }
-
-    async function handleSlotDropFromHistory(index, imageUrl) {
-        try {
-            const response = await fetch(withCacheBuster(imageUrl));
-            if (!response.ok) {
-                console.warn('Failed to fetch history image', response.statusText);
-                return;
-            }
-
-            const blob = await response.blob();
-            const name = imageUrl.split('/').pop()?.split('?')[0] || `history-${index + 1}.png`;
-            const type = blob.type || 'image/png';
-            const file = new File([blob], name, { type });
-            handleSlotFile(index, file);
-        } catch (error) {
-            console.error('Unable to import history image', error);
-        }
-    }
-
-    function updateSlotVisual(index) {
-        const slotRecord = imageSlotState[index];
-        if (!slotRecord) return;
-        const slot = slotRecord.slot;
-        const placeholder = slot.querySelector('.slot-placeholder');
-        const preview = slot.querySelector('.slot-preview');
-        const removeBtn = slot.querySelector('.slot-remove');
-
-        if (slotRecord.data && slotRecord.data.preview) {
-            preview.src = slotRecord.data.preview;
-            preview.classList.remove('hidden');
-            placeholder.classList.add('hidden');
-            removeBtn.classList.remove('hidden');
-            slot.classList.add('filled');
-            slot.classList.remove('empty');
-        } else {
-            preview.src = '';
-            preview.classList.add('hidden');
-            placeholder.classList.remove('hidden');
-            removeBtn.classList.add('hidden');
-            slot.classList.add('empty');
-            slot.classList.remove('filled');
-        }
-    }
-
-    function clearSlot(index) {
-        const slotRecord = imageSlotState[index];
-        if (!slotRecord) return;
-        slotRecord.data = null;
-        const input = slotRecord.slot.querySelector('.slot-input');
-        if (input) input.value = '';
-        updateSlotVisual(index);
-        persistSettings();
-    }
-
-    function maybeAddSlot() {
-        const hasEmpty = imageSlotState.some(record => !record.data);
-        if (!hasEmpty && imageSlotState.length < MAX_IMAGE_SLOTS) {
-            addImageSlot();
-        }
-    }
-
-    function serializeReferenceImages() {
-        return imageSlotState
-            .map((record, index) => {
-                if (!record.data || !record.data.preview) return null;
-                const name = record.data.cached?.name || record.data.file?.name || `reference-${index + 1}.png`;
-                const type = record.data.cached?.type || record.data.file?.type || 'image/png';
-                return {
-                    name,
-                    type,
-                    dataUrl: record.data.preview,
-                };
-            })
-            .filter(Boolean);
-    }
-
-    function getSlotFile(record) {
-        if (!record.data) return null;
-        if (record.data.file) return record.data.file;
-        if (record.data.cached && record.data.cached.dataUrl) {
-            const blob = dataUrlToBlob(record.data.cached.dataUrl);
-            if (!blob) return null;
-            const fileName = record.data.cached.name || `reference.png`;
-            const fileType = record.data.cached.type || 'image/png';
-            return new File([blob], fileName, { type: fileType });
-        }
-        return null;
-    }
-
-    function dataUrlToBlob(dataUrl) {
-        try {
-            const [prefix, base64] = dataUrl.split(',');
-            const mimeMatch = prefix.match(/:(.*?);/);
-            const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-            const binary = atob(base64);
-            const len = binary.length;
-            const buffer = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                buffer[i] = binary.charCodeAt(i);
-            }
-            return new Blob([buffer], { type: mime });
-        } catch (error) {
-            console.warn('Unable to convert cached image to blob', error);
-            return null;
-        }
-    }
-
-    popupButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const target = button.dataset.popupTarget;
-            if (target) {
-                showPopup(target);
-            }
-        });
-    });
-
-    if (popupCloseBtn) {
-        popupCloseBtn.addEventListener('click', closePopup);
-    }
-
-    if (popupOverlay) {
-        popupOverlay.addEventListener('click', event => {
-            if (event.target === popupOverlay) {
-                closePopup();
-            }
-        });
-    }
-
-    document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && popupOverlay && !popupOverlay.classList.contains('hidden')) {
-            event.preventDefault();
-            closePopup();
-        }
-    });
-
-    function showPopup(type) {
-        const content = POPUP_CONTENT[type];
-        if (!content || !popupOverlay || !popupBodyEl || !popupTitleEl) return;
-
-        popupTitleEl.textContent = content.title;
-        popupBodyEl.innerHTML = content.sections
-            .map(section => {
-                const items = (section.items || []).map(item => `<li>${item}</li>`).join('');
-                return `
-                    <section class="popup-section">
-                        <h3>${section.heading}</h3>
-                        <ul>${items}</ul>
-                    </section>
-                `;
-            })
-            .join('');
-
-        popupOverlay.classList.remove('hidden');
-    }
-
-    function closePopup() {
-        if (!popupOverlay) return;
-        popupOverlay.classList.add('hidden');
     }
 });
