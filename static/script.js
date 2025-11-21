@@ -8,6 +8,8 @@ const SETTINGS_STORAGE_KEY = 'gemini-image-app-settings';
 const ZOOM_STEP = 0.1;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 4;
+const SIDEBAR_MIN_WIDTH = 260;
+const SIDEBAR_MAX_WIDTH = 520;
 
 const infoContent = {
     title: 'Thông tin',
@@ -47,9 +49,13 @@ const docsContent = {
     ],
 };
 
+const helpContent = {
+    title: 'Thông tin & Hướng dẫn',
+    sections: [...infoContent.sections, ...docsContent.sections],
+};
+
 const POPUP_CONTENT = {
-    info: infoContent,
-    docs: docsContent,
+    help: helpContent,
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -70,6 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const imageInputGrid = document.getElementById('image-input-grid');
     const imageDisplayArea = document.querySelector('.image-display-area');
     const canvasToolbar = document.querySelector('.canvas-toolbar');
+    const sidebar = document.querySelector('.sidebar');
+    const resizeHandle = document.querySelector('.sidebar-resize-handle');
 
     let zoomLevel = 1;
     let panOffset = { x: 0, y: 0 };
@@ -224,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadGallery();
+    setupSidebarResizer(sidebar, resizeHandle);
 
     function setViewState(state) {
         placeholderState.classList.add('hidden');
@@ -472,4 +481,48 @@ document.addEventListener('DOMContentLoaded', () => {
         panOffset = { x: 0, y: 0 };
         setImageTransform();
     }
+
+    function setupSidebarResizer(sidebar, handle) {
+        if (!sidebar || !handle) return;
+        let isResizing = false;
+        let activePointerId = null;
+
+        const updateWidth = (clientX) => {
+            const sidebarRect = sidebar.getBoundingClientRect();
+            let newWidth = clientX - sidebarRect.left;
+            newWidth = clamp(newWidth, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
+            sidebar.style.width = `${newWidth}px`;
+        };
+
+        const stopResize = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            if (activePointerId !== null) {
+                try {
+                    handle.releasePointerCapture(activePointerId);
+                } catch (error) {
+                    console.warn('Unable to release pointer capture', error);
+                }
+                activePointerId = null;
+            }
+            document.body.style.cursor = '';
+        };
+
+        handle.addEventListener('pointerdown', (event) => {
+            isResizing = true;
+            activePointerId = event.pointerId;
+            handle.setPointerCapture(activePointerId);
+            document.body.style.cursor = 'ew-resize';
+            event.preventDefault();
+        });
+
+        document.addEventListener('pointermove', (event) => {
+            if (!isResizing) return;
+            updateWidth(event.clientX);
+        });
+
+        document.addEventListener('pointerup', stopResize);
+        document.addEventListener('pointercancel', stopResize);
+    }
+
 });
