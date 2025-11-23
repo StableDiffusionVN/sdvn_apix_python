@@ -3,6 +3,8 @@ import { createGallery } from './modules/gallery.js';
 import { createReferenceSlotManager } from './modules/referenceSlots.js';
 import { setupHelpPopups } from './modules/popup.js';
 import { extractMetadataFromBlob } from './modules/metadata.js';
+import { createTemplateGallery } from './modules/templateGallery.js';
+import { i18n } from './modules/i18n.js';
 
 const SETTINGS_STORAGE_KEY = 'gemini-image-app-settings';
 const ZOOM_STEP = 0.1;
@@ -68,6 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const placeholderState = document.getElementById('placeholder-state');
     const loadingState = document.getElementById('loading-state');
     const errorState = document.getElementById('error-state');
+    const templateGalleryState = document.getElementById('template-gallery-state');
+    const templateGalleryContainer = document.getElementById('template-gallery-container');
     const resultState = document.getElementById('result-state');
     const errorText = document.getElementById('error-text');
     const generatedImage = document.getElementById('generated-image');
@@ -79,13 +83,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebar = document.querySelector('.sidebar');
     const resizeHandle = document.querySelector('.sidebar-resize-handle');
 
+    // Refine Prompt Elements
+    const refinePromptBtn = document.getElementById('refine-prompt-btn');
+    const refineModal = document.getElementById('refine-modal');
+    const closeRefineModalBtn = document.getElementById('close-refine-modal');
+    const refineInstructionInput = document.getElementById('refine-instruction');
+    const confirmRefineBtn = document.getElementById('confirm-refine-btn');
+
     let zoomLevel = 1;
     let panOffset = { x: 0, y: 0 };
     let isPanning = false;
     let lastPointer = { x: 0, y: 0 };
+    let hasGeneratedImage = false; // Track if image exists
 
     const slotManager = createReferenceSlotManager(imageInputGrid, {
         onChange: persistSettings,
+    });
+
+    const templateGallery = createTemplateGallery({
+        container: templateGalleryContainer,
+        onSelectTemplate: (template) => {
+            // Fill prompt field with template prompt (language-aware)
+            if (template.prompt) {
+                promptInput.value = i18n.getText(template.prompt);
+                persistSettings();
+            }
+            // Stay in template gallery view - don't auto-switch
+            // User will switch view by selecting image from history or generating
+        }
     });
 
     const gallery = createGallery({
@@ -95,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (metadata) {
                 applyMetadata(metadata);
             }
-        },
+        }
     });
 
     setupHelpPopups({
@@ -164,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', handleGenerateShortcut);
     document.addEventListener('keydown', handleResetShortcut);
     document.addEventListener('keydown', handleDownloadShortcut);
+    document.addEventListener('keydown', handleTemplateShortcut);
 
     if (imageDisplayArea) {
         imageDisplayArea.addEventListener('wheel', handleCanvasWheel, { passive: false });
@@ -217,6 +243,82 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasToolbar.addEventListener('click', handleCanvasToolbarClick);
     }
 
+    // Refine Prompt Logic
+    if (refinePromptBtn) {
+        refinePromptBtn.addEventListener('click', () => {
+            refineInstructionInput.value = ''; // Clear previous instruction
+            refineModal.classList.remove('hidden');
+            refineInstructionInput.focus();
+        });
+    }
+
+    if (closeRefineModalBtn) {
+        closeRefineModalBtn.addEventListener('click', () => {
+            refineModal.classList.add('hidden');
+        });
+    }
+
+    // Close modal when clicking outside
+    if (refineModal) {
+        refineModal.addEventListener('click', (e) => {
+            if (e.target === refineModal) {
+                refineModal.classList.add('hidden');
+            }
+        });
+    }
+
+    const refineLoading = document.getElementById('refine-loading');
+
+    if (confirmRefineBtn && refineLoading) {
+        confirmRefineBtn.addEventListener('click', async () => {
+            const instruction = refineInstructionInput.value.trim();
+            const currentPrompt = promptInput.value.trim();
+            const apiKey = apiKeyInput.value.trim();
+
+            if (!instruction) return;
+            if (!apiKey) {
+                alert('Please enter your API Key first.');
+                return;
+            }
+
+            // Show loading state
+            confirmRefineBtn.classList.add('hidden');
+            refineLoading.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/refine_prompt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        current_prompt: currentPrompt,
+                        instruction: instruction,
+                        api_key: apiKey
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                if (data.refined_prompt) {
+                    promptInput.value = data.refined_prompt;
+                    persistSettings(); // Save the new prompt
+                    refineModal.classList.add('hidden');
+                }
+            } catch (error) {
+                alert('Failed to refine prompt: ' + error.message);
+            } finally {
+                // Reset state
+                confirmRefineBtn.classList.remove('hidden');
+                refineLoading.classList.add('hidden');
+            }
+        });
+    }
+
     document.addEventListener('pointermove', handleCanvasPointerMove);
     document.addEventListener('pointerup', () => {
         if (isPanning && imageDisplayArea) {
@@ -232,12 +334,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadGallery();
+    loadTemplateGallery();
     initializeSidebarResizer(sidebar, resizeHandle);
+    
+    // Setup canvas language toggle
+    const canvasLangInput = document.getElementById('canvas-lang-input');
+    if (canvasLangInput) {
+        // Set initial state
+        canvasLangInput.checked = i18n.currentLang === 'en';
+        
+        canvasLangInput.addEventListener('change', (e) => {
+            i18n.setLanguage(e.target.checked ? 'en' : 'vi');
+            // Update visual state
+            const options = document.querySelectorAll('.canvas-lang-option');
+            options.forEach(opt => {
+                const isActive = opt.dataset.lang === i18n.currentLang;
+                opt.classList.toggle('active', isActive);
+            });
+            // Reload template gallery with new language
+            templateGallery.render();
+        });
+    }
 
     function setViewState(state) {
         placeholderState.classList.add('hidden');
         loadingState.classList.add('hidden');
         errorState.classList.add('hidden');
+        templateGalleryState.classList.add('hidden');
         resultState.classList.add('hidden');
 
         switch (state) {
@@ -249,6 +372,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'error':
                 errorState.classList.remove('hidden');
+                break;
+            case 'template-gallery':
+                templateGalleryState.classList.remove('hidden');
                 break;
             case 'result':
                 resultState.classList.remove('hidden');
@@ -281,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resetView();
         };
 
+        hasGeneratedImage = true; // Mark that we have an image
         setViewState('result');
     }
 
@@ -317,6 +444,19 @@ document.addEventListener('DOMContentLoaded', () => {
             await gallery.load();
         } catch (error) {
             console.error('Unable to populate gallery', error);
+        }
+    }
+
+    async function loadTemplateGallery() {
+        try {
+            await templateGallery.load();
+            // Don't auto-show template gallery - let user trigger it
+            // Default view will be placeholder or template gallery based on state
+            if (!hasGeneratedImage) {
+                setViewState('template-gallery');
+            }
+        } catch (error) {
+            console.error('Unable to load template gallery', error);
         }
     }
 
@@ -432,6 +572,29 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadLink.click();
     }
 
+    function handleTemplateShortcut(event) {
+        if (event.key.toLowerCase() !== 't') return;
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const targetTag = event.target?.tagName;
+        if (targetTag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag)) return;
+        if (event.target?.isContentEditable) return;
+        
+        event.preventDefault();
+        
+        // Toggle template gallery
+        if (templateGalleryState.classList.contains('hidden')) {
+            setViewState('template-gallery');
+        } else {
+            // If we have a generated image, go back to result
+            if (hasGeneratedImage) {
+                setViewState('result');
+            } else {
+                // Otherwise go to placeholder
+                setViewState('placeholder');
+            }
+        }
+    }
+
     function handleCanvasWheel(event) {
         if (resultState.classList.contains('hidden')) return;
         event.preventDefault();
@@ -474,6 +637,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'zoom-reset':
                 resetView();
+                break;
+            case 'toggle-template':
+                // Toggle between result and template gallery
+                if (resultState.classList.contains('hidden')) {
+                    setViewState('result');
+                } else {
+                    setViewState('template-gallery');
+                }
                 break;
         }
     }

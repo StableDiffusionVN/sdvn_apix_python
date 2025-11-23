@@ -248,5 +248,64 @@ def get_gallery():
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
+@app.route('/prompts')
+def get_prompts():
+    category = request.args.get('category')
+    
+    try:
+        # Read prompts.json file
+        prompts_path = os.path.join(os.path.dirname(__file__), 'prompts.json')
+        with open(prompts_path, 'r', encoding='utf-8') as f:
+            prompts = json.load(f)
+        
+        # Filter by category if specified
+        if category:
+            prompts = [p for p in prompts if p.get('category') == category]
+        
+        response = jsonify({'prompts': prompts})
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/refine_prompt', methods=['POST'])
+def refine_prompt():
+    data = request.get_json()
+    current_prompt = data.get('current_prompt')
+    instruction = data.get('instruction')
+    api_key = data.get('api_key') or os.environ.get('GOOGLE_API_KEY')
+
+    if not api_key:
+        return jsonify({'error': 'API Key is required.'}), 401
+    
+    if not instruction:
+        return jsonify({'error': 'Instruction is required'}), 400
+
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        system_instruction = "You are an expert prompt engineer for image generation AI. Rewrite the prompt to incorporate the user's instruction while maintaining the original intent and improving quality. Return ONLY the new prompt text, no explanations."
+        
+        prompt_content = f"Current prompt: {current_prompt}\nUser instruction: {instruction}\nNew prompt:"
+        
+        print(f"Refining prompt with instruction: {instruction}")
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt_content],
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.7,
+            )
+        )
+        
+        if response.text:
+            return jsonify({'refined_prompt': response.text.strip()})
+        else:
+            return jsonify({'error': 'No response from AI'}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, port=8888)

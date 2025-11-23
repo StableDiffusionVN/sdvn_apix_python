@@ -5,3 +5,4 @@
 .DS_Store
 /.venv
 /static/uploads
+.DS_Store
