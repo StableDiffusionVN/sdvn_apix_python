@@ -33,11 +33,11 @@ const docsContent = {
         {
             heading: 'Phím tắt',
             items: [
-                'Ctrl/Cmd + Enter → tạo ảnh mới',
-                'D → tải ảnh hiện tại',
-                'D → tải ảnh hiện tại',
-                'Space → reset zoom/pan vùng hiển thị ảnh',
-                'Esc → đóng popup thông tin/docs',
+                'Ctrl/Cmd + Enter → Tạo ảnh mới',
+                'D → Tải ảnh hiện tại',
+                'T → Mở bảng template',
+                'Space → Reset zoom/pan vùng hiển thị ảnh',
+                'Esc → Đóng popup thông tin/docs',
             ],
         },
         {
