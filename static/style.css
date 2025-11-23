@@ -1251,3 +1251,200 @@ button#generate-btn:disabled {
         max-height: 140px;
     }
 }
+
+/* Template Create Modal */
+.template-form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-left: 0.25rem;
+}
+
+.template-preview-dropzone {
+    width: 100%;
+    height: 220px;
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.template-preview-dropzone:hover {
+    border-color: var(--accent-color);
+    background: rgba(251, 191, 36, 0.05);
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.1);
+}
+
+.template-preview-dropzone.drag-over {
+    border-color: var(--accent-hover);
+    background: rgba(251, 191, 36, 0.1);
+    transform: scale(0.99);
+}
+
+.template-preview-dropzone img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 0.5rem;
+}
+
+.dropzone-placeholder {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dropzone-placeholder::before {
+    content: '+';
+    font-size: 2rem;
+    color: var(--accent-color);
+    opacity: 0.5;
+}
+
+.category-input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+#create-template-modal .popup-card {
+    background: rgba(10, 11, 22, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+#save-template-btn {
+    padding: 0.6rem 1.5rem;
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+    color: #000;
+    font-weight: 700;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#save-template-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 15px rgba(251, 191, 36, 0.3);
+}
+
+#save-template-btn:active {
+    transform: translateY(0);
+}
+
+.template-preview-url-input {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    padding: 0.75rem;
+    background: var(--input-bg);
+    border: 1px solid var(--accent-color);
+    border-radius: 0.5rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    z-index: 10;
+}
+
+.template-preview-url-input:focus {
+    outline: none;
+    border-color: var(--accent-hover);
+    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
+}
+
+.template-edit-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s;
+    z-index: 5;
+}
+
+.template-card:hover .template-edit-btn {
+    opacity: 1;
+}
+
+.template-edit-btn:hover {
+    background: var(--accent-color);
+    color: #000;
+    border-color: var(--accent-color);
+    transform: scale(1.1);
+}
+
+.template-edit-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.template-create-btn {
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+    color: #000;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.template-create-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 15px rgba(251, 191, 36, 0.3);
+}
+
+.template-create-btn svg {
+    width: 16px;
+    height: 16px;
+}

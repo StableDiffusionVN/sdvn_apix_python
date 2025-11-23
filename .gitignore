@@ -6,3 +6,5 @@
 /.venv
 /static/uploads
 .DS_Store
+user_prompts.json
+/static/preview

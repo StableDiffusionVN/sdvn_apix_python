@@ -319,6 +319,446 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Create Template Logic
+    const createTemplateBtn = document.getElementById('create-template-btn');
+    const createTemplateModal = document.getElementById('create-template-modal');
+    const closeTemplateModalBtn = document.getElementById('close-template-modal');
+    const saveTemplateBtn = document.getElementById('save-template-btn');
+    
+    const templateTitleInput = document.getElementById('template-title');
+    const templatePromptInput = document.getElementById('template-prompt');
+    const templateModeSelect = document.getElementById('template-mode');
+    const templateCategorySelect = document.getElementById('template-category-select');
+    const templateCategoryInput = document.getElementById('template-category-input');
+    const templatePreviewDropzone = document.getElementById('template-preview-dropzone');
+    const templatePreviewImg = document.getElementById('template-preview-img');
+    const dropzonePlaceholder = document.querySelector('.dropzone-placeholder');
+
+    let currentPreviewFile = null;
+    let currentPreviewUrl = null;
+    let editingTemplate = null; // Track if we're editing an existing template
+
+    // Global function for opening edit modal (called from templateGallery.js)
+    window.openEditTemplateModal = async function(template) {
+        editingTemplate = template;
+        
+        // Pre-fill with template data
+        templateTitleInput.value = template.title || '';
+        templatePromptInput.value = template.prompt || '';
+        templateModeSelect.value = template.mode || 'generate';
+        templateCategoryInput.classList.add('hidden');
+        templateCategoryInput.value = '';
+
+        // Populate categories
+        try {
+            const response = await fetch('/prompts');
+            const data = await response.json();
+            
+            if (data.prompts) {
+                const categories = new Set();
+                data.prompts.forEach(t => {
+                    if (t.category) {
+                        const categoryText = typeof t.category === 'string' 
+                            ? t.category 
+                            : (t.category.vi || t.category.en || '');
+                        if (categoryText) categories.add(categoryText);
+                    }
+                });
+                
+                templateCategorySelect.innerHTML = '';
+                const sortedCategories = Array.from(categories).sort();
+                sortedCategories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    templateCategorySelect.appendChild(option);
+                });
+                
+                const newOption = document.createElement('option');
+                newOption.value = 'new';
+                newOption.textContent = '+ New Category';
+                templateCategorySelect.appendChild(newOption);
+                
+                // Set to template's category
+                const templateCategory = typeof template.category === 'string' 
+                    ? template.category 
+                    : (template.category.vi || template.category.en || '');
+                templateCategorySelect.value = templateCategory || 'User';
+            }
+        } catch (error) {
+            console.error('Failed to load categories:', error);
+        }
+
+        // Set preview image
+        if (template.preview) {
+            templatePreviewImg.src = template.preview;
+            templatePreviewImg.classList.remove('hidden');
+            dropzonePlaceholder.classList.add('hidden');
+            currentPreviewUrl = template.preview;
+        } else {
+            templatePreviewImg.src = '';
+            templatePreviewImg.classList.add('hidden');
+            dropzonePlaceholder.classList.remove('hidden');
+            currentPreviewUrl = null;
+        }
+        currentPreviewFile = null;
+
+        // Update button text
+        saveTemplateBtn.innerHTML = '<span>Update Template</span><div class="btn-shine"></div>';
+        
+        createTemplateModal.classList.remove('hidden');
+    };
+
+    // Global function for opening create modal with empty values (called from templateGallery.js)
+    window.openCreateTemplateModal = async function() {
+        editingTemplate = null;
+        
+        // Clear all fields
+        templateTitleInput.value = '';
+        templatePromptInput.value = '';
+        templateModeSelect.value = 'generate';
+        templateCategoryInput.classList.add('hidden');
+        templateCategoryInput.value = '';
+
+        // Populate categories
+        try {
+            const response = await fetch('/prompts');
+            const data = await response.json();
+            
+            if (data.prompts) {
+                const categories = new Set();
+                data.prompts.forEach(t => {
+                    if (t.category) {
+                        const categoryText = typeof t.category === 'string' 
+                            ? t.category 
+                            : (t.category.vi || t.category.en || '');
+                        if (categoryText) categories.add(categoryText);
+                    }
+                });
+                
+                templateCategorySelect.innerHTML = '';
+                const sortedCategories = Array.from(categories).sort();
+                sortedCategories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    templateCategorySelect.appendChild(option);
+                });
+                
+                const newOption = document.createElement('option');
+                newOption.value = 'new';
+                newOption.textContent = '+ New Category';
+                templateCategorySelect.appendChild(newOption);
+                
+                if (sortedCategories.includes('User')) {
+                    templateCategorySelect.value = 'User';
+                } else if (sortedCategories.length > 0) {
+                    templateCategorySelect.value = sortedCategories[0];
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load categories:', error);
+        }
+
+        // Clear preview image
+        templatePreviewImg.src = '';
+        templatePreviewImg.classList.add('hidden');
+        dropzonePlaceholder.classList.remove('hidden');
+        currentPreviewUrl = null;
+        currentPreviewFile = null;
+
+        // Update button text
+        saveTemplateBtn.innerHTML = '<span>Save Template</span><div class="btn-shine"></div>';
+        
+        createTemplateModal.classList.remove('hidden');
+    };
+
+    if (createTemplateBtn) {
+        createTemplateBtn.addEventListener('click', async () => {
+            // Reset editing state
+            editingTemplate = null;
+            
+            // Pre-fill data
+            templateTitleInput.value = '';
+            templatePromptInput.value = promptInput.value;
+            templateModeSelect.value = 'generate';
+            templateCategoryInput.classList.add('hidden');
+            templateCategoryInput.value = '';
+
+            // Populate categories dynamically from template library
+            try {
+                const response = await fetch('/prompts');
+                const data = await response.json();
+                
+                if (data.prompts) {
+                    // Extract unique categories
+                    const categories = new Set();
+                    data.prompts.forEach(template => {
+                        if (template.category) {
+                            // Handle both string and object categories
+                            const categoryText = typeof template.category === 'string' 
+                                ? template.category 
+                                : (template.category.vi || template.category.en || '');
+                            if (categoryText) {
+                                categories.add(categoryText);
+                            }
+                        }
+                    });
+                    
+                    // Clear existing options except "new"
+                    templateCategorySelect.innerHTML = '';
+                    
+                    // Add sorted categories
+                    const sortedCategories = Array.from(categories).sort();
+                    sortedCategories.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat;
+                        option.textContent = cat;
+                        templateCategorySelect.appendChild(option);
+                    });
+                    
+                    // Add "new category" option at the end
+                    const newOption = document.createElement('option');
+                    newOption.value = 'new';
+                    newOption.textContent = '+ New Category';
+                    templateCategorySelect.appendChild(newOption);
+                    
+                    // Set default to first category or "User" if it exists
+                    if (sortedCategories.includes('User')) {
+                        templateCategorySelect.value = 'User';
+                    } else if (sortedCategories.length > 0) {
+                        templateCategorySelect.value = sortedCategories[0];
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+                // Fallback to default categories
+                templateCategorySelect.innerHTML = `
+                    <option value="User">User</option>
+                    <option value="new">+ New Category</option>
+                `;
+                templateCategorySelect.value = 'User';
+            }
+
+            // Set preview image from current generated image
+            if (generatedImage.src && !generatedImage.src.endsWith('placeholder.png')) {
+                templatePreviewImg.src = generatedImage.src;
+                templatePreviewImg.classList.remove('hidden');
+                dropzonePlaceholder.classList.add('hidden');
+                currentPreviewUrl = generatedImage.src;
+            } else {
+                templatePreviewImg.src = '';
+                templatePreviewImg.classList.add('hidden');
+                dropzonePlaceholder.classList.remove('hidden');
+                currentPreviewUrl = null;
+            }
+            currentPreviewFile = null;
+
+            // Update button text
+            saveTemplateBtn.innerHTML = '<span>Save Template</span><div class="btn-shine"></div>';
+
+            createTemplateModal.classList.remove('hidden');
+        });
+    }
+
+    if (closeTemplateModalBtn) {
+        closeTemplateModalBtn.addEventListener('click', () => {
+            createTemplateModal.classList.add('hidden');
+        });
+    }
+
+    // Category select logic
+    if (templateCategorySelect) {
+        templateCategorySelect.addEventListener('change', (e) => {
+            if (e.target.value === 'new') {
+                templateCategoryInput.classList.remove('hidden');
+                templateCategoryInput.focus();
+            } else {
+                templateCategoryInput.classList.add('hidden');
+            }
+        });
+    }
+
+    // Drag and drop for preview
+    const templatePreviewUrlInput = document.getElementById('template-preview-url');
+    let isUrlInputMode = false;
+
+    if (templatePreviewDropzone) {
+        // Click to toggle URL input mode
+        templatePreviewDropzone.addEventListener('click', (e) => {
+            // Don't toggle if clicking on the input itself
+            if (e.target === templatePreviewUrlInput) return;
+            
+            if (!isUrlInputMode) {
+                // Switch to URL input mode
+                isUrlInputMode = true;
+                templatePreviewImg.classList.add('hidden');
+                dropzonePlaceholder.classList.add('hidden');
+                templatePreviewUrlInput.classList.remove('hidden');
+                templatePreviewUrlInput.focus();
+            }
+        });
+
+        // Handle URL input
+        if (templatePreviewUrlInput) {
+            templatePreviewUrlInput.addEventListener('blur', async () => {
+                const url = templatePreviewUrlInput.value.trim();
+                if (url) {
+                    try {
+                        // Try to load the image from URL
+                        const img = new Image();
+                        img.onload = () => {
+                            templatePreviewImg.src = url;
+                            templatePreviewImg.classList.remove('hidden');
+                            dropzonePlaceholder.classList.add('hidden');
+                            templatePreviewUrlInput.classList.add('hidden');
+                            currentPreviewUrl = url;
+                            currentPreviewFile = null;
+                            isUrlInputMode = false;
+                        };
+                        img.onerror = () => {
+                            alert('Failed to load image from URL. Please check the URL and try again.');
+                            templatePreviewUrlInput.focus();
+                        };
+                        img.src = url;
+                    } catch (error) {
+                        alert('Invalid image URL');
+                        templatePreviewUrlInput.focus();
+                    }
+                } else {
+                    // If empty, go back to placeholder
+                    isUrlInputMode = false;
+                    templatePreviewUrlInput.classList.add('hidden');
+                    dropzonePlaceholder.classList.remove('hidden');
+                }
+            });
+
+            templatePreviewUrlInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    templatePreviewUrlInput.blur();
+                } else if (e.key === 'Escape') {
+                    templatePreviewUrlInput.value = '';
+                    templatePreviewUrlInput.blur();
+                }
+            });
+        }
+        
+        templatePreviewDropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            templatePreviewDropzone.classList.add('drag-over');
+        });
+
+        templatePreviewDropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            templatePreviewDropzone.classList.remove('drag-over');
+        });
+
+        templatePreviewDropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            templatePreviewDropzone.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/')) {
+                    currentPreviewFile = file;
+                    const objectUrl = URL.createObjectURL(file);
+                    templatePreviewImg.src = objectUrl;
+                    templatePreviewImg.classList.remove('hidden');
+                    dropzonePlaceholder.classList.add('hidden');
+                    templatePreviewUrlInput.classList.add('hidden');
+                    isUrlInputMode = false;
+                }
+            }
+        });
+    }
+
+    // Save template
+    if (saveTemplateBtn) {
+        saveTemplateBtn.addEventListener('click', async () => {
+            const title = templateTitleInput.value.trim();
+            const prompt = templatePromptInput.value.trim();
+            const mode = templateModeSelect.value;
+            let category = templateCategorySelect.value;
+            
+            if (category === 'new') {
+                category = templateCategoryInput.value.trim();
+            }
+
+            if (!title) {
+                alert('Please enter a title for the template.');
+                return;
+            }
+            if (!prompt) {
+                alert('Please enter a prompt.');
+                return;
+            }
+            if (!category) {
+                alert('Please select or enter a category.');
+                return;
+            }
+
+            saveTemplateBtn.disabled = true;
+            saveTemplateBtn.textContent = editingTemplate ? 'Updating...' : 'Saving...';
+
+            try {
+                const formData = new FormData();
+                formData.append('title', title);
+                formData.append('prompt', prompt);
+                formData.append('mode', mode);
+                formData.append('category', category);
+
+                if (currentPreviewFile) {
+                    formData.append('preview', currentPreviewFile);
+                } else if (currentPreviewUrl) {
+                    formData.append('preview_path', currentPreviewUrl);
+                }
+
+                // If editing, add the template index
+                const endpoint = editingTemplate ? '/update_template' : '/save_template';
+                if (editingTemplate) {
+                    formData.append('template_index', editingTemplate.userTemplateIndex);
+                }
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Success
+                createTemplateModal.classList.add('hidden');
+                
+                // Reload template gallery
+                await templateGallery.load();
+                
+                // Reset editing state
+                editingTemplate = null;
+
+            } catch (error) {
+                alert(`Failed to ${editingTemplate ? 'update' : 'save'} template: ` + error.message);
+            } finally {
+                saveTemplateBtn.disabled = false;
+                saveTemplateBtn.innerHTML = '<span>Save Template</span><div class="btn-shine"></div>';
+            }
+        });
+    }
+
+    // Close modal when clicking outside
+    if (createTemplateModal) {
+        createTemplateModal.addEventListener('click', (e) => {
+            if (e.target === createTemplateModal) {
+                createTemplateModal.classList.add('hidden');
+            }
+        });
+    }
+
     document.addEventListener('pointermove', handleCanvasPointerMove);
     document.addEventListener('pointerup', () => {
         if (isPanning && imageDisplayArea) {
