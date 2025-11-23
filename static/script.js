@@ -333,14 +333,101 @@ document.addEventListener('DOMContentLoaded', () => {
     const templatePreviewDropzone = document.getElementById('template-preview-dropzone');
     const templatePreviewImg = document.getElementById('template-preview-img');
     const dropzonePlaceholder = document.querySelector('.dropzone-placeholder');
+    const templateTagList = document.getElementById('template-tag-list');
+    const templateTagInput = document.getElementById('template-tags-input');
 
     let currentPreviewFile = null;
     let currentPreviewUrl = null;
     let editingTemplate = null; // Track if we're editing an existing template
+    let editingTemplateSource = null;
+    let editingBuiltinIndex = null;
+    const TEMPLATE_TAG_LIMIT = 8;
+    let templateTags = [];
+
+    function normalizeRawTags(raw) {
+        if (!raw) return [];
+        if (Array.isArray(raw)) {
+            return raw.map(tag => typeof tag === 'string' ? tag.trim() : '').filter(Boolean);
+        }
+        if (typeof raw === 'string') {
+            return raw.split(',').map(tag => tag.trim()).filter(Boolean);
+        }
+        return [];
+    }
+
+    function renderTemplateTags() {
+        if (!templateTagList) return;
+        templateTagList.innerHTML = '';
+        templateTags.forEach(tag => {
+            const chip = document.createElement('span');
+            chip.className = 'template-tag-chip';
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'template-tag-chip-text';
+            textSpan.textContent = tag;
+            chip.appendChild(textSpan);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'template-tag-remove';
+            removeBtn.setAttribute('aria-label', `Remove ${tag}`);
+            removeBtn.innerHTML = '&times;';
+            removeBtn.addEventListener('click', () => {
+                removeTemplateTag(tag);
+            });
+            chip.appendChild(removeBtn);
+
+            templateTagList.appendChild(chip);
+        });
+    }
+
+    function setTemplateTags(raw) {
+        const normalized = normalizeRawTags(raw);
+        templateTags = normalized.slice(0, TEMPLATE_TAG_LIMIT);
+        renderTemplateTags();
+    }
+
+    function addTemplateTag(value) {
+        if (!value) return;
+        const normalized = value.trim();
+        if (!normalized || templateTags.length >= TEMPLATE_TAG_LIMIT) return;
+        const exists = templateTags.some(tag => tag.toLowerCase() === normalized.toLowerCase());
+        if (exists) return;
+        templateTags = [...templateTags, normalized];
+        renderTemplateTags();
+    }
+
+    function removeTemplateTag(tagToRemove) {
+        templateTags = templateTags.filter(tag => tag.toLowerCase() !== tagToRemove.toLowerCase());
+        renderTemplateTags();
+    }
+
+    function flushTemplateTagInput() {
+        if (!templateTagInput) return;
+        const raw = templateTagInput.value;
+        if (!raw.trim()) return;
+        const parts = raw.split(',').map(part => part.trim()).filter(Boolean);
+        parts.forEach(part => addTemplateTag(part));
+        templateTagInput.value = '';
+    }
+
+    if (templateTagInput) {
+        templateTagInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ',') {
+                event.preventDefault();
+                flushTemplateTagInput();
+            }
+        });
+        templateTagInput.addEventListener('blur', () => {
+            flushTemplateTagInput();
+        });
+    }
 
     // Global function for opening edit modal (called from templateGallery.js)
     window.openEditTemplateModal = async function(template) {
         editingTemplate = template;
+        editingTemplateSource = template.isUserTemplate ? 'user' : 'builtin';
+        editingBuiltinIndex = editingTemplateSource === 'builtin' ? template.builtinTemplateIndex : null;
         
         // Pre-fill with template data
         templateTitleInput.value = template.title || '';
@@ -403,6 +490,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         currentPreviewFile = null;
 
+        setTemplateTags(template.tags || []);
+        if (templateTagInput) {
+            templateTagInput.value = '';
+        }
+
         // Update button text
         saveTemplateBtn.innerHTML = '<span>Update Template</span><div class="btn-shine"></div>';
         
@@ -412,7 +504,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Global function for opening create modal with empty values (called from templateGallery.js)
     window.openCreateTemplateModal = async function() {
         editingTemplate = null;
+        editingTemplateSource = 'user';
+        editingBuiltinIndex = null;
         
+        setTemplateTags([]);
+        if (templateTagInput) {
+            templateTagInput.value = '';
+        }
+
         // Clear all fields
         templateTitleInput.value = '';
         templatePromptInput.value = '';
@@ -477,6 +576,8 @@ document.addEventListener('DOMContentLoaded', () => {
         createTemplateBtn.addEventListener('click', async () => {
             // Reset editing state
             editingTemplate = null;
+            editingTemplateSource = 'user';
+            editingBuiltinIndex = null;
             
             // Pre-fill data
             templateTitleInput.value = '';
@@ -554,6 +655,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             currentPreviewFile = null;
 
+            setTemplateTags([]);
+            if (templateTagInput) {
+                templateTagInput.value = '';
+            }
+
             // Update button text
             saveTemplateBtn.innerHTML = '<span>Save Template</span><div class="btn-shine"></div>';
 
@@ -564,6 +670,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeTemplateModalBtn) {
         closeTemplateModalBtn.addEventListener('click', () => {
             createTemplateModal.classList.add('hidden');
+            editingTemplate = null;
+            editingTemplateSource = null;
+            editingBuiltinIndex = null;
         });
     }
 
@@ -708,6 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('prompt', prompt);
                 formData.append('mode', mode);
                 formData.append('category', category);
+                formData.append('tags', JSON.stringify(templateTags));
 
                 if (currentPreviewFile) {
                     formData.append('preview', currentPreviewFile);
@@ -718,7 +828,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // If editing, add the template index
                 const endpoint = editingTemplate ? '/update_template' : '/save_template';
                 if (editingTemplate) {
-                    formData.append('template_index', editingTemplate.userTemplateIndex);
+                    if (editingTemplateSource === 'user') {
+                        formData.append('template_index', editingTemplate.userTemplateIndex);
+                    } else if (editingTemplateSource === 'builtin' && editingBuiltinIndex !== null) {
+                        formData.append('builtin_index', editingBuiltinIndex);
+                    }
                 }
 
                 const response = await fetch(endpoint, {
@@ -740,6 +854,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Reset editing state
                 editingTemplate = null;
+                editingTemplateSource = null;
+                editingBuiltinIndex = null;
 
             } catch (error) {
                 alert(`Failed to ${editingTemplate ? 'update' : 'save'} template: ` + error.message);
@@ -755,6 +871,9 @@ document.addEventListener('DOMContentLoaded', () => {
         createTemplateModal.addEventListener('click', (e) => {
             if (e.target === createTemplateModal) {
                 createTemplateModal.classList.add('hidden');
+                editingTemplate = null;
+                editingTemplateSource = null;
+                editingBuiltinIndex = null;
             }
         });
     }

@@ -157,7 +157,7 @@
                                 </svg>
                             </button>
                             <button type="button" id="create-template-btn" class="canvas-btn icon-btn"
-                                aria-label="Create Template" title="Tạo Template">
+                                aria-label="Create Template" title="Create Template">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
                                     xmlns="http://www.w3.org/2000/svg">
                                     <path d="M10 14H12M12 14H14M12 14V16M12 14V12" stroke="currentColor"
@@ -288,6 +288,16 @@
                                     placeholder="New Category Name">
                             </div>
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="template-tags-input">Tags</label>
+                        <div class="template-tag-control">
+                            <div id="template-tag-list" class="template-tag-list" aria-live="polite"></div>
+                            <input type="text" id="template-tags-input"
+                                placeholder="Add keywords and press Enter (max 8)">
+                        </div>
+                        <p class="form-hint">Use short keywords to surface this template in searches.</p>
                     </div>
                 </div>
 

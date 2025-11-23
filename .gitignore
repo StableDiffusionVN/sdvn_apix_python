@@ -8,3 +8,4 @@
 .DS_Store
 user_prompts.json
 /static/preview
+template_favorites.json

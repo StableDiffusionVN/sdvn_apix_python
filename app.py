@@ -14,6 +14,62 @@ from PIL import Image, PngImagePlugin
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
+FAVORITES_FILE = os.path.join(os.path.dirname(__file__), 'template_favorites.json')
+
+def load_template_favorites():
+    if os.path.exists(FAVORITES_FILE):
+        try:
+            with open(FAVORITES_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return [item for item in data if isinstance(item, str)]
+        except json.JSONDecodeError:
+            pass
+    return []
+
+def save_template_favorites(favorites):
+    try:
+        with open(FAVORITES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(favorites, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"Failed to persist template favorites: {e}")
+
+def parse_tags_field(value):
+    tags = []
+    if isinstance(value, list):
+        tags = value
+    elif isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                tags = parsed
+            else:
+                tags = [parsed]
+        except json.JSONDecodeError:
+            tags = [value]
+    else:
+        return []
+
+    result = []
+    for tag in tags:
+        if isinstance(tag, dict):
+            fallback = tag.get('vi') or tag.get('en')
+            if fallback:
+                normalized = fallback.strip()
+            else:
+                continue
+        elif isinstance(tag, str):
+            normalized = tag.strip()
+        else:
+            continue
+
+        if normalized:
+            result.append(normalized)
+            if len(result) >= 12:
+                break
+
+    return result
+
 # Ensure generated directory exists inside Flask static folder
 GENERATED_DIR = os.path.join(app.static_folder, 'generated')
 os.makedirs(GENERATED_DIR, exist_ok=True)
@@ -259,7 +315,15 @@ def get_prompts():
         prompts_path = os.path.join(os.path.dirname(__file__), 'prompts.json')
         if os.path.exists(prompts_path):
             with open(prompts_path, 'r', encoding='utf-8') as f:
-                all_prompts.extend(json.load(f))
+                try:
+                    builtin_prompts = json.load(f)
+                    if isinstance(builtin_prompts, list):
+                        for idx, prompt in enumerate(builtin_prompts):
+                            prompt['builtinTemplateIndex'] = idx
+                            prompt['tags'] = parse_tags_field(prompt.get('tags'))
+                        all_prompts.extend(builtin_prompts)
+                except json.JSONDecodeError:
+                    pass
             
         # Read user_prompts.json file and mark as user templates
         user_prompts_path = os.path.join(os.path.dirname(__file__), 'user_prompts.json')
@@ -272,6 +336,7 @@ def get_prompts():
                         for idx, template in enumerate(user_prompts):
                             template['isUserTemplate'] = True
                             template['userTemplateIndex'] = idx
+                            template['tags'] = parse_tags_field(template.get('tags'))
                         all_prompts.extend(user_prompts)
             except json.JSONDecodeError:
                 pass # Ignore if empty or invalid
@@ -280,11 +345,33 @@ def get_prompts():
         if category:
             all_prompts = [p for p in all_prompts if p.get('category') == category]
         
-        response = jsonify({'prompts': all_prompts})
+        favorites = load_template_favorites()
+        response = jsonify({'prompts': all_prompts, 'favorites': favorites})
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return response
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/template_favorite', methods=['POST'])
+def template_favorite():
+    data = request.get_json() or {}
+    key = data.get('key')
+    favorite = data.get('favorite')
+
+    if not key or not isinstance(favorite, bool):
+        return jsonify({'error': 'Invalid favorite payload'}), 400
+
+    favorites = load_template_favorites()
+
+    if favorite:
+        if key not in favorites:
+            favorites.append(key)
+    else:
+        favorites = [item for item in favorites if item != key]
+
+    save_template_favorites(favorites)
+    return jsonify({'favorites': favorites})
 
 @app.route('/save_template', methods=['POST'])
 def save_template():
@@ -297,6 +384,8 @@ def save_template():
         prompt = request.form.get('prompt')
         mode = request.form.get('mode', 'generate')
         category = request.form.get('category', 'User')
+        tags_field = request.form.get('tags')
+        tags = parse_tags_field(tags_field)
         
         if not title or not prompt:
             return jsonify({'error': 'Title and prompt are required'}), 400
@@ -383,7 +472,8 @@ def save_template():
             'prompt': prompt,
             'mode': mode,
             'category': category,
-            'preview': preview_path
+            'preview': preview_path,
+            'tags': tags
         }
         
         # Save to user_prompts.json
@@ -415,43 +505,49 @@ def update_template():
     try:
         import requests
         from urllib.parse import urlparse
-        
-        # Get template index
+
         template_index = request.form.get('template_index')
-        if template_index is None:
-            return jsonify({'error': 'Template index is required'}), 400
-        
-        template_index = int(template_index)
-        
-        # Handle multipart form data
+        builtin_index_raw = request.form.get('builtin_index')
+        builtin_index = None
+
+        try:
+            if builtin_index_raw:
+                builtin_index = int(builtin_index_raw)
+        except ValueError:
+            return jsonify({'error': 'Invalid builtin template index'}), 400
+
+        if template_index is None and builtin_index is None:
+            return jsonify({'error': 'Template index or builtin index is required'}), 400
+
+        if template_index is not None:
+            try:
+                template_index = int(template_index)
+            except ValueError:
+                return jsonify({'error': 'Invalid template index'}), 400
+
         title = request.form.get('title')
         prompt = request.form.get('prompt')
         mode = request.form.get('mode', 'generate')
         category = request.form.get('category', 'User')
-        
+        tags_field = request.form.get('tags')
+        tags = parse_tags_field(tags_field)
+
         if not title or not prompt:
             return jsonify({'error': 'Title and prompt are required'}), 400
-            
-        # Handle preview image (same logic as save_template)
+
         preview_path = None
         preview_dir = os.path.join(app.static_folder, 'preview')
         os.makedirs(preview_dir, exist_ok=True)
-        
-        # Check if file was uploaded
+
         if 'preview' in request.files:
             file = request.files['preview']
             if file.filename:
-                ext = os.path.splitext(file.filename)[1]
-                if not ext:
-                    ext = '.png'
-                    
+                ext = os.path.splitext(file.filename)[1] or '.png'
                 filename = f"template_{uuid.uuid4()}{ext}"
                 filepath = os.path.join(preview_dir, filename)
                 file.save(filepath)
-                
                 preview_path = url_for('static', filename=f'preview/{filename}')
-        
-        # If no file uploaded, check if URL/path provided
+
         if not preview_path:
             preview_url = request.form.get('preview_path')
             if preview_url:
@@ -459,7 +555,7 @@ def update_template():
                     if preview_url.startswith('http://') or preview_url.startswith('https://'):
                         response = requests.get(preview_url, timeout=10)
                         response.raise_for_status()
-                        
+
                         content_type = response.headers.get('content-type', '')
                         if 'image/png' in content_type:
                             ext = '.png'
@@ -470,41 +566,82 @@ def update_template():
                         else:
                             parsed = urlparse(preview_url)
                             ext = os.path.splitext(parsed.path)[1] or '.png'
-                        
+
                         filename = f"template_{uuid.uuid4()}{ext}"
                         filepath = os.path.join(preview_dir, filename)
-                        
+
                         with open(filepath, 'wb') as f:
                             f.write(response.content)
-                        
+
                         preview_path = url_for('static', filename=f'preview/{filename}')
-                    
+
                     elif preview_url.startswith('/static/'):
                         rel_path = preview_url.split('/static/')[1]
                         source_path = os.path.join(app.static_folder, rel_path)
-                        
+
                         if os.path.exists(source_path):
                             ext = os.path.splitext(source_path)[1] or '.png'
                             filename = f"template_{uuid.uuid4()}{ext}"
                             dest_path = os.path.join(preview_dir, filename)
-                            
+
                             import shutil
                             shutil.copy2(source_path, dest_path)
-                            
+
                             preview_path = url_for('static', filename=f'preview/{filename}')
                         else:
                             preview_path = preview_url
                     else:
                         preview_path = preview_url
-                        
+
                 except Exception as e:
                     print(f"Error processing preview image URL: {e}")
                     preview_path = preview_url
-        
-        # Read existing user templates
+
+        if builtin_index is not None:
+            prompts_path = os.path.join(os.path.dirname(__file__), 'prompts.json')
+            if not os.path.exists(prompts_path):
+                return jsonify({'error': 'Prompts file not found'}), 404
+
+            try:
+                with open(prompts_path, 'r', encoding='utf-8') as f:
+                    builtin_prompts = json.load(f)
+            except json.JSONDecodeError:
+                return jsonify({'error': 'Unable to read prompts.json'}), 500
+
+            if not isinstance(builtin_prompts, list) or builtin_index < 0 or builtin_index >= len(builtin_prompts):
+                return jsonify({'error': 'Invalid builtin template index'}), 400
+
+            existing_template = builtin_prompts[builtin_index]
+            old_preview = existing_template.get('preview', '')
+
+            if preview_path and old_preview and '/preview/' in old_preview:
+                try:
+                    old_filename = old_preview.split('/preview/')[-1]
+                    old_filepath = os.path.join(preview_dir, old_filename)
+                    if os.path.exists(old_filepath):
+                        os.remove(old_filepath)
+                except Exception as e:
+                    print(f"Error deleting old preview image: {e}")
+
+            existing_template['title'] = title
+            existing_template['prompt'] = prompt
+            existing_template['mode'] = mode
+            existing_template['category'] = category
+            if preview_path:
+                existing_template['preview'] = preview_path
+            existing_template['tags'] = tags
+            builtin_prompts[builtin_index] = existing_template
+
+            with open(prompts_path, 'w', encoding='utf-8') as f:
+                json.dump(builtin_prompts, f, indent=4, ensure_ascii=False)
+
+            existing_template['builtinTemplateIndex'] = builtin_index
+            return jsonify({'success': True, 'template': existing_template})
+
+        # Fallback to user template update
         user_prompts_path = os.path.join(os.path.dirname(__file__), 'user_prompts.json')
         user_prompts = []
-        
+
         if os.path.exists(user_prompts_path):
             try:
                 with open(user_prompts_path, 'r', encoding='utf-8') as f:
@@ -513,44 +650,37 @@ def update_template():
                         user_prompts = json.loads(content)
             except json.JSONDecodeError:
                 pass
-        
-        # Check if index is valid
+
         if template_index < 0 or template_index >= len(user_prompts):
             return jsonify({'error': 'Invalid template index'}), 400
-        
-        # Get old template to check for old preview image
+
         old_template = user_prompts[template_index]
         old_preview = old_template.get('preview', '')
-        
-        # Delete old preview image if it exists in the preview folder
-        if old_preview and '/preview/' in old_preview:
+        if preview_path and old_preview and '/preview/' in old_preview:
             try:
-                # Extract filename from URL
                 old_filename = old_preview.split('/preview/')[-1]
                 old_filepath = os.path.join(preview_dir, old_filename)
-                
-                # Delete old file if it exists
                 if os.path.exists(old_filepath):
                     os.remove(old_filepath)
-                    print(f"Deleted old preview image: {old_filepath}")
             except Exception as e:
                 print(f"Error deleting old preview image: {e}")
-        
-        # Update the template
+
         user_prompts[template_index] = {
             'title': title,
             'prompt': prompt,
             'mode': mode,
             'category': category,
-            'preview': preview_path
+            'preview': preview_path,
+            'tags': tags
         }
-        
-        # Save back to file
+
         with open(user_prompts_path, 'w', encoding='utf-8') as f:
             json.dump(user_prompts, f, indent=4, ensure_ascii=False)
-            
+
+        user_prompts[template_index]['isUserTemplate'] = True
+        user_prompts[template_index]['userTemplateIndex'] = template_index
         return jsonify({'success': True, 'template': user_prompts[template_index]})
-        
+
     except Exception as e:
         print(f"Error updating template: {e}")
         return jsonify({'error': str(e)}), 500
