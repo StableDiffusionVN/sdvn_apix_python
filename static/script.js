@@ -1080,6 +1080,16 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTemplateGallery();
     initializeSidebarResizer(sidebar, resizeHandle);
     
+    // Restore last image if available
+    try {
+        const lastImage = localStorage.getItem('gemini-app-last-image');
+        if (lastImage) {
+            displayImage(lastImage);
+        }
+    } catch (e) {
+        console.warn('Failed to restore last image', e);
+    }
+    
     // Setup canvas language toggle
     const canvasLangInput = document.getElementById('canvas-lang-input');
     if (canvasLangInput) {
@@ -1152,6 +1162,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         hasGeneratedImage = true; // Mark that we have an image
         setViewState('result');
+        
+        // Persist image URL
+        try {
+            localStorage.setItem('gemini-app-last-image', imageUrl);
+        } catch (e) {
+            console.warn('Failed to save last image URL', e);
+        }
     }
 
     async function handleCanvasDropUrl(imageUrl) {

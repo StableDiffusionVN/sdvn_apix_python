@@ -6,13 +6,38 @@
 import { i18n } from './i18n.js';
 
 export function createTemplateGallery({ container, onSelectTemplate }) {
+    const STORAGE_KEY = 'gemini-app-template-filters';
+    
+    // Load saved filters
+    let savedFilters = {};
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) savedFilters = JSON.parse(saved);
+    } catch (e) {
+        console.warn('Failed to load template filters', e);
+    }
+
     let allTemplates = [];
-    let currentCategory = 'all';
-    let currentMode = 'all';
+    let currentCategory = savedFilters.category || 'all';
+    let currentMode = savedFilters.mode || 'all';
     let searchQuery = '';
     let favoriteTemplateKeys = new Set();
-    let favoriteFilterActive = false;
-    let userTemplateFilterActive = false;
+    let favoriteFilterActive = savedFilters.favorites || false;
+    let userTemplateFilterActive = savedFilters.userTemplates || false;
+
+    function persistFilters() {
+        try {
+            const filters = {
+                category: currentCategory,
+                mode: currentMode,
+                favorites: favoriteFilterActive,
+                userTemplates: userTemplateFilterActive
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
+        } catch (e) {
+            console.warn('Failed to save template filters', e);
+        }
+    }
 
     function setFavoriteKeys(keys) {
         if (Array.isArray(keys)) {
@@ -203,6 +228,78 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
                 }
             });
             previewActions.appendChild(editBtn);
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'template-edit-btn'; // Reuse same style
+            deleteBtn.style.marginLeft = '4px';
+            deleteBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 6H5H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M8 6V4C8 3.46957 8.21071 3 8.58579 2.62513C8.96086 2.25026 9.46957 2.03967 10 2.03967H14C14.5304 2.03967 15.0391 2.25026 15.4142 2.62513C15.7893 3 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            `;
+            deleteBtn.title = 'Delete Template';
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                
+                const deleteModal = document.getElementById('delete-confirm-modal');
+                const confirmBtn = document.getElementById('confirm-delete-btn');
+                const cancelBtn = document.getElementById('cancel-delete-btn');
+                const closeBtn = document.getElementById('close-delete-modal');
+                
+                if (!deleteModal || !confirmBtn) {
+                    console.error('Delete modal elements not found');
+                    return;
+                }
+                
+                const closeModal = () => {
+                    deleteModal.classList.add('hidden');
+                    confirmBtn.replaceWith(confirmBtn.cloneNode(true)); // Remove listeners
+                    cancelBtn?.replaceWith(cancelBtn.cloneNode(true));
+                    closeBtn?.replaceWith(closeBtn.cloneNode(true));
+                };
+                
+                deleteModal.classList.remove('hidden');
+                
+                // Setup new listeners
+                const newConfirmBtn = document.getElementById('confirm-delete-btn');
+                const newCancelBtn = document.getElementById('cancel-delete-btn');
+                const newCloseBtn = document.getElementById('close-delete-modal');
+                
+                newConfirmBtn.addEventListener('click', async () => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('template_index', template.userTemplateIndex);
+                        
+                        const response = await fetch('/delete_template', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            closeModal();
+                            load();
+                        } else {
+                            alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                        }
+                    } catch (error) {
+                        console.error('Error deleting template:', error);
+                        alert('Error deleting template');
+                    }
+                });
+                
+                newCancelBtn?.addEventListener('click', closeModal);
+                newCloseBtn?.addEventListener('click', closeModal);
+                
+                // Close on click outside
+                deleteModal.onclick = (event) => {
+                    if (event.target === deleteModal) {
+                        closeModal();
+                    }
+                };
+            });
+            previewActions.appendChild(deleteBtn);
         }
 
         preview.appendChild(previewActions);
@@ -307,6 +404,7 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
         modeSelect.value = currentMode;
         modeSelect.addEventListener('change', (e) => {
             currentMode = e.target.value;
+            persistFilters();
             render();
         });
 
@@ -325,6 +423,7 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
         categorySelect.value = currentCategory;
         categorySelect.addEventListener('change', (e) => {
             currentCategory = e.target.value;
+            persistFilters();
             render();
         });
 
@@ -343,6 +442,7 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
         `;
         favoritesToggle.addEventListener('click', () => {
             favoriteFilterActive = !favoriteFilterActive;
+            persistFilters();
             render();
         });
         const filterRow = document.createElement('div');
@@ -365,6 +465,7 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
         `;
         userToggle.addEventListener('click', () => {
             userTemplateFilterActive = !userTemplateFilterActive;
+            persistFilters();
             render();
         });
         filterRow.appendChild(userToggle);

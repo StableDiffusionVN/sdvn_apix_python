@@ -47,10 +47,14 @@
                             <a href="https://chatgpt.com/g/g-6923d39c8efc8191be0bc3089bebc441-banana-prompt-guide"
                                 target="_blank" rel="noopener noreferrer" class="prompt-action-btn"
                                 title="Prompt Guide">
-                                <svg fill="currentColor" height="16px" width="16px" viewBox="0 0 24 24"
-                                    xmlns="http://www.w3.org/2000/svg">
+                                <svg version="1.1" xmlns="http://www.w3.org/2000/svg"
+                                    xmlns:xlink="http://www.w3.org/1999/xlink" width="16px" height="16px"
+                                    viewBox="0 0 32 32" xml:space="preserve" fill="currentColor">
                                     <path
-                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                                        d="M21,24c0,0.552-0.447,1-1,1h-8c-0.553,0-1-0.448-1-1s0.447-1,1-1h8C20.553,23,21,23.448,21,24z
+                                     M20,26h-8c-0.553,0-1,0.448-1,1s0.447,1,1,1h8c0.553,0,1-0.448,1-1S20.553,26,20,26z M15,29v1c0,0.552,0.448,1,1,1s1-0.448,1-1v-1
+                                    H15z M26,11c0,5-5,8-5,10c0,0.552-0.448,1-1,1h-8c-0.552,0-1-0.448-1-1c0-2-5-5-5-10C6,5.477,10.477,1,16,1S26,5.477,26,11z M17,4
+                                    c0-0.552-0.447-1-1-1c-4.411,0-8,3.589-8,8c0,0.552,0.447,1,1,1s1-0.448,1-1c0-3.309,2.691-6,6-6C16.553,5,17,4.552,17,4z" />
                                 </svg>
                                 <span>Prompt Guide</span>
                             </a>
@@ -366,6 +370,24 @@
                         <span>Đóng</span>
                         <div class="btn-shine"></div>
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="delete-confirm-modal" class="popup-overlay hidden">
+        <div class="popup-card" style="max-width: 400px;">
+            <header class="popup-header">
+                <h2>Xác nhận xoá</h2>
+                <button id="close-delete-modal" type="button" class="popup-close" aria-label="Close">&times;</button>
+            </header>
+            <div class="popup-body">
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Bạn có chắc chắn muốn xoá template này
+                    không?</p>
+                <div class="controls-footer" style="justify-content: flex-end; gap: 0.5rem;">
+                    <button id="cancel-delete-btn" class="action-btn"
+                        style="background: rgba(255, 255, 255, 0.1); color: var(--text-primary);">Huỷ</button>
+                    <button id="confirm-delete-btn" class="action-btn"
+                        style="background: var(--danger-color); color: white;">Xoá</button>
                 </div>
             </div>
         </div>

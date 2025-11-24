@@ -12,7 +12,11 @@ from google import genai
 from google.genai import types
 from PIL import Image, PngImagePlugin
 
+import logging
+
 app = Flask(__name__)
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 PREVIEW_MAX_DIMENSION = 1024
@@ -200,6 +204,7 @@ def generate_image():
         return jsonify({'error': 'API Key is required.'}), 401
 
     try:
+        print("Đang gửi lệnh...", flush=True)
         client = genai.Client(api_key=api_key)
 
         image_config_args = {
@@ -294,6 +299,7 @@ def generate_image():
                     continue
 
         model_name = "gemini-3-pro-image-preview"
+        print("Đang tạo...", flush=True)
         response = client.models.generate_content(
             model=model_name,
             contents=contents,
@@ -302,6 +308,7 @@ def generate_image():
                 image_config=types.ImageConfig(**image_config_args),
             )
         )
+        print("Hoàn tất!", flush=True)
 
         for part in response.parts:
             if part.inline_data:
@@ -793,6 +800,55 @@ def update_template():
 
     except Exception as e:
         print(f"Error updating template: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/delete_template', methods=['POST'])
+def delete_template():
+    try:
+        template_index = request.form.get('template_index')
+        if template_index is None:
+             return jsonify({'error': 'Template index is required'}), 400
+        
+        try:
+            template_index = int(template_index)
+        except ValueError:
+            return jsonify({'error': 'Invalid template index'}), 400
+
+        user_prompts_path = os.path.join(os.path.dirname(__file__), 'user_prompts.json')
+        if not os.path.exists(user_prompts_path):
+            return jsonify({'error': 'User prompts file not found'}), 404
+            
+        with open(user_prompts_path, 'r', encoding='utf-8') as f:
+            user_prompts = json.load(f)
+            
+        if template_index < 0 or template_index >= len(user_prompts):
+            return jsonify({'error': 'Template not found'}), 404
+            
+        template_to_delete = user_prompts[template_index]
+        
+        # Delete preview image if it exists and is local
+        preview_path = template_to_delete.get('preview')
+        if preview_path and '/static/preview/' in preview_path:
+            # Extract filename
+            try:
+                filename = preview_path.split('/static/preview/')[1]
+                preview_dir = os.path.join(app.static_folder, 'preview')
+                filepath = os.path.join(preview_dir, filename)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except Exception as e:
+                print(f"Error deleting preview image: {e}")
+
+        # Remove from list
+        del user_prompts[template_index]
+        
+        # Save back
+        with open(user_prompts_path, 'w', encoding='utf-8') as f:
+            json.dump(user_prompts, f, indent=4, ensure_ascii=False)
+            
+        return jsonify({'success': True})
+
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/refine_prompt', methods=['POST'])
