@@ -66,6 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const aspectRatioInput = document.getElementById('aspect-ratio');
     const resolutionInput = document.getElementById('resolution');
     const apiKeyInput = document.getElementById('api-key');
+    const openApiSettingsBtn = document.getElementById('open-api-settings-btn');
+    const apiSettingsOverlay = document.getElementById('api-settings-overlay');
+    const apiSettingsCloseBtn = document.getElementById('api-settings-close');
+    const saveApiSettingsBtn = document.getElementById('save-api-settings-btn');
+    const apiKeyToggleBtn = document.getElementById('toggle-api-key-visibility');
+    const apiKeyEyeIcon = apiKeyToggleBtn?.querySelector('.icon-eye');
+    const apiKeyEyeOffIcon = apiKeyToggleBtn?.querySelector('.icon-eye-off');
 
     const placeholderState = document.getElementById('placeholder-state');
     const loadingState = document.getElementById('loading-state');
@@ -132,10 +139,58 @@ document.addEventListener('DOMContentLoaded', () => {
         content: POPUP_CONTENT,
     });
 
+    const openApiSettings = () => {
+        if (!apiSettingsOverlay) return;
+        apiSettingsOverlay.classList.remove('hidden');
+        apiKeyInput?.focus();
+    };
+
+    const closeApiSettings = () => {
+        if (!apiSettingsOverlay) return;
+        apiSettingsOverlay.classList.add('hidden');
+    };
+
+    openApiSettingsBtn?.addEventListener('click', openApiSettings);
+    apiSettingsCloseBtn?.addEventListener('click', closeApiSettings);
+    saveApiSettingsBtn?.addEventListener('click', closeApiSettings);
+
+    apiSettingsOverlay?.addEventListener('click', (event) => {
+        if (event.target === apiSettingsOverlay) {
+            closeApiSettings();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && apiSettingsOverlay && !apiSettingsOverlay.classList.contains('hidden')) {
+            event.preventDefault();
+            closeApiSettings();
+        }
+    });
+
     const savedSettings = loadSettings();
     slotManager.initialize(savedSettings.referenceImages || []);
 
     apiKeyInput.addEventListener('input', persistSettings);
+    let isApiKeyVisible = false;
+
+    const refreshApiKeyVisibility = () => {
+        if (!apiKeyInput) return;
+        apiKeyInput.type = isApiKeyVisible ? 'text' : 'password';
+        if (apiKeyToggleBtn) {
+            apiKeyToggleBtn.setAttribute('aria-pressed', String(isApiKeyVisible));
+            apiKeyToggleBtn.setAttribute('aria-label', isApiKeyVisible ? 'Ẩn API key' : 'Hiện API key');
+        }
+        apiKeyEyeIcon?.classList.toggle('hidden', isApiKeyVisible);
+        apiKeyEyeOffIcon?.classList.toggle('hidden', !isApiKeyVisible);
+    };
+
+    if (apiKeyToggleBtn) {
+        apiKeyToggleBtn.addEventListener('click', () => {
+            isApiKeyVisible = !isApiKeyVisible;
+            refreshApiKeyVisibility();
+        });
+    }
+    refreshApiKeyVisibility();
     promptInput.addEventListener('input', persistSettings);
     aspectRatioInput.addEventListener('change', persistSettings);
     resolutionInput.addEventListener('change', persistSettings);
@@ -145,6 +200,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const aspectRatio = aspectRatioInput.value;
         const resolution = resolutionInput.value;
         const apiKey = apiKeyInput.value.trim();
+
+        if (!apiKey) {
+            openApiSettings();
+            return;
+        }
 
         if (!prompt) {
             showError('Please enter a prompt.');

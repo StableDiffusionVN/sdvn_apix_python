@@ -156,6 +156,15 @@ a:hover {
     gap: 1rem;
     margin-bottom: 1rem;
     width: 100%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 32px;
+    margin-top: 30px;
+}
+
+.sidebar-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .info-icon-btn {
@@ -163,7 +172,7 @@ a:hover {
     height: 36px;
     padding: 0;
     min-width: 36px;
-    border-radius: 0;
+    border-radius: 50%;
     font-size: 1rem;
     font-weight: 600;
     line-height: 1;
@@ -207,6 +216,9 @@ a:hover {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    margin-top: 1rem;
+    padding-right: 10px;
+    margin-right: -10px;
 }
 
 .controls-footer {
@@ -231,10 +243,86 @@ a:hover {
     line-height: 1.1;
 }
 
+.api-settings-note {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.65rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    line-height: 1.4;
+}
+
+.api-settings-note-icon {
+    font-weight: 700;
+}
+
 .input-group {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+}
+
+.api-settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.api-settings-warning {
+    font-size: 0.9rem;
+    color: #ffd166;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 209, 102, 0.4);
+    padding: 0.75rem 1rem;
+    background: rgba(255, 209, 102, 0.08);
+    line-height: 1.4;
+}
+
+.api-settings-input-group {
+    margin: 0;
+}
+
+.api-key-field {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    position: relative;
+}
+
+.api-key-toggle-btn {
+    width: 43.5px;
+    height: 43.5px;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+    padding: 0;
+}
+
+.api-key-toggle-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.api-key-toggle-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.api-key-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.api-key-hint a {
+    color: var(--accent-color);
 }
 
 label {
@@ -260,6 +348,8 @@ select {
     -webkit-appearance: none;
 }
 
+input[type="password"], input[type="text"] {
+    width: 100%;}
 select {
     background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(15, 15, 25, 0.3)),
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath fill='rgba(249, 203, 42, 0.85)' d='M7 8L0.928 0.5h12.144L7 8z'/%3E%3C/svg%3E");
@@ -318,40 +408,52 @@ textarea {
 
 .prompt-wrapper textarea {
     width: 100%;
-    padding-bottom: 2.5rem; /* Make space for the button */
 }
 
-.prompt-refine-btn {
-    position: absolute;
-    bottom: 0.5rem;
-    right: 0.5rem;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--text-secondary);
+.prompt-actions {
     display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.prompt-action-btn {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 0;
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
-    z-index: 5;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    text-decoration: none;
 }
 
-.prompt-refine-btn:hover {
-    background: rgba(251, 191, 36, 0.15);
+.prompt-action-btn:hover {
+    background: rgba(251, 191, 36, 0.25);
     color: var(--accent-color);
     border-color: var(--accent-color);
-    transform: scale(1.05);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(251, 191, 36, 0.3);
+    text-decoration: none;
 }
 
-.prompt-refine-btn svg {
-    width: 16px;
-    height: 16px;
+.prompt-action-btn svg {
+    width: 18px;
+    height: 18px;
     fill: currentColor;
+    flex-shrink: 0;
+}
+
+.prompt-action-btn span {
+    display: none;
 }
 
 #confirm-refine-btn {
@@ -947,8 +1049,8 @@ button#generate-btn:disabled {
 /* Canvas Language Toggle (Top-Left Corner) */
 .canvas-lang-toggle {
     position: absolute;
-    top: 1rem;
-    left: 1rem;
+    top: 1.2rem;
+    left: 2rem;
     z-index: 20;
 }
 
@@ -1490,6 +1592,29 @@ button#generate-btn:disabled {
 }
 
 #save-template-btn:active {
+    transform: translateY(0);
+}
+
+#save-api-settings-btn {
+    padding: 0.6rem 1.25rem;
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+    color: #000;
+    font-weight: 600;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+#save-api-settings-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 15px rgba(251, 191, 36, 0.3);
+}
+
+#save-api-settings-btn:active {
     transform: translateY(0);
 }
 

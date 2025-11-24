@@ -21,24 +21,40 @@
                 <div class="brand">
                     <h1>aPix <span class="badge">by SDVN</span></h1>
                 </div>
-                <button type="button" class="toolbar-info-btn info-icon-btn" data-popup-target="help"
-                    aria-label="Thông tin và hướng dẫn">
-                    <span aria-hidden="true">i</span>
-                </button>
+                <div class="sidebar-header-actions">
+                    <button type="button" class="toolbar-info-btn info-icon-btn" data-popup-target="help"
+                        aria-label="Thông tin và hướng dẫn">
+                        <span aria-hidden="true">i</span>
+                    </button>
+                    <button type="button" id="open-api-settings-btn" class="toolbar-info-btn info-icon-btn"
+                        aria-label="Thiết lập API key" aria-haspopup="dialog">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path
+                                d="M20.1 9.2214C18.29 9.2214 17.55 7.9414 18.45 6.3714C18.97 5.4614 18.66 4.3014 17.75 3.7814L16.02 2.7914C15.23 2.3214 14.21 2.6014 13.74 3.3914L13.63 3.5814C12.73 5.1514 11.25 5.1514 10.34 3.5814L10.23 3.3914C9.78 2.6014 8.76 2.3214 7.97 2.7914L6.24 3.7814C5.33 4.3014 5.02 5.4714 5.54 6.3814C6.45 7.9414 5.71 9.2214 3.9 9.2214C2.86 9.2214 2 10.0714 2 11.1214V12.8814C2 13.9214 2.85 14.7814 3.9 14.7814C5.71 14.7814 6.45 16.0614 5.54 17.6314C5.02 18.5414 5.33 19.7014 6.24 20.2214L7.97 21.2114C8.76 21.6814 9.78 21.4014 10.25 20.6114L10.36 20.4214C11.26 18.8514 12.74 18.8514 13.65 20.4214L13.76 20.6114C14.23 21.4014 15.25 21.6814 16.04 21.2114L17.77 20.2214C18.68 19.7014 18.99 18.5314 18.47 17.6314C17.56 16.0614 18.3 14.7814 20.11 14.7814C21.15 14.7814 22.01 13.9314 22.01 12.8814V11.1214C22 10.0814 21.15 9.2214 20.1 9.2214ZM12 15.2514C10.21 15.2514 8.75 13.7914 8.75 12.0014C8.75 10.2114 10.21 8.7514 12 8.7514C13.79 8.7514 15.25 10.2114 15.25 12.0014C15.25 13.7914 13.79 15.2514 12 15.2514Z" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <div class="controls-section">
                 <div class="controls-content">
                     <div class="input-group">
-                        <label for="api-key">API Key</label>
-                        <input type="password" id="api-key" placeholder="Google Cloud API Key">
-                    </div>
-
-                    <div class="input-group">
                         <label for="prompt">Prompt</label>
                         <div class="prompt-wrapper">
                             <textarea id="prompt" placeholder="Describe your imagination..." rows="6"></textarea>
-                            <button id="refine-prompt-btn" class="prompt-refine-btn" title="Refine with AI">
+                        </div>
+                        <div class="prompt-actions">
+                            <a href="https://chatgpt.com/g/g-6923d39c8efc8191be0bc3089bebc441-banana-prompt-guide"
+                                target="_blank" rel="noopener noreferrer" class="prompt-action-btn"
+                                title="Prompt Guide">
+                                <svg fill="currentColor" height="16px" width="16px" viewBox="0 0 24 24"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                                </svg>
+                                <span>Prompt Guide</span>
+                            </a>
+                            <button id="refine-prompt-btn" class="prompt-action-btn" title="Refine with AI">
                                 <svg fill="currentColor" height="16px" width="16px" version="1.1" id="Layer_1"
                                     xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
                                     viewBox="0 0 512.422 512.422" xml:space="preserve">
@@ -62,6 +78,7 @@
                                         </g>
                                     </g>
                                 </svg>
+                                <span>Refine Prompt</span>
                             </button>
                         </div>
                     </div>
@@ -198,17 +215,17 @@
     <div id="refine-modal" class="popup-overlay hidden">
         <div class="popup-card">
             <header class="popup-header">
-                <h2>Refine Prompt</h2>
+                <h2>Tinh chỉnh Prompt</h2>
                 <button id="close-refine-modal" type="button" class="popup-close" aria-label="Close">&times;</button>
             </header>
             <div class="popup-body">
-                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem;">How would you like to
-                    change the current prompt?</p>
-                <textarea id="refine-instruction" placeholder="e.g. Make it more realistic, add dramatic lighting..."
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem;">Bạn muốn điều chỉnh
+                    prompt hiện tại như thế nào?</p>
+                <textarea id="refine-instruction" placeholder="Ví dụ: Làm cho thật thực tế, thêm ánh sáng điện ảnh..."
                     rows="3"></textarea>
                 <div class="controls-footer" style="margin-top: 1rem; justify-content: flex-end; align-items: center;">
                     <button id="confirm-refine-btn">
-                        <span>Refine</span>
+                        <span>Tinh chỉnh</span>
                         <div class="btn-shine"></div>
                     </button>
                     <div id="refine-loading" class="hidden" style="color: var(--accent-color);">
@@ -304,6 +321,49 @@
                 <div class="controls-footer" style="margin-top: 1.5rem; justify-content: flex-end;">
                     <button id="save-template-btn">
                         <span>Save Template</span>
+                        <div class="btn-shine"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="api-settings-overlay" class="popup-overlay hidden" role="dialog" aria-modal="true"
+        aria-labelledby="api-settings-title">
+        <div class="popup-card" style="max-width: 480px;">
+            <header class="popup-header">
+                <h2 id="api-settings-title">Thiết lập API Key</h2>
+                <button id="api-settings-close" type="button" class="popup-close" aria-label="Close">&times;</button>
+            </header>
+            <div class="popup-body api-settings-body">
+                <p class="api-settings-warning">
+                    API cần thiết lập thanh toán với Google để sử dụng. Sau khi có key, lưu vào đây để ứng dụng hoạt
+                    động.
+                </p>
+                <div class="input-group api-settings-input-group">
+                    <label for="api-key">Google Cloud API Key</label>
+                    <div class="api-key-field">
+                        <input type="password" id="api-key" placeholder="Google Cloud API Key">
+                        <button type="button" id="toggle-api-key-visibility" class="api-key-toggle-btn"
+                            aria-label="Hiện API key" aria-pressed="false">
+                            <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    d="M12 4.5c-4.97 0-9.27 3.11-11 7.5 1.73 4.39 6.03 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 16.97 4.5 12 4.5zm0 12a4.5 4.5 0 110-9 4.5 4.5 0 010 9zm0-7a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
+                            </svg>
+                            <svg class="icon-eye-off hidden" viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    d="M2 12c2.5-4.5 6.5-7 11-7 1.72 0 3.38.4 4.95 1.16l1.68-1.68L21.5 3 3 21.5l1.48-1.48 1.93-1.93C7.72 20.28 9.83 21 12 21c4.97 0 9.27-3.11 11-7.5-.56-1.43-1.46-2.73-2.55-3.84L20.84 7.8C20.95 8.03 21 8.26 21 8.5c0 3.59-3.39 6.5-9 6.5a8.9 8.9 0 01-4.72-1.27l1.45-1.45c.46.23.95.37 1.46.37 2.76 0 5-2.24 5-5 0-.5-.08-.98-.24-1.43l1.58-1.58C19.12 11.25 20 11.61 21 12c-1.73 4.39-6.03 7.5-11 7.5-1.72 0-3.38-.4-4.95-1.16L2 19.5 3.5 21l18.5-18.5L19.5 0 18 1.5l-1.63 1.63A10.95 10.95 0 0012 1c-4.97 0-9.27 3.11-11 7.5z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="input-hint api-key-hint">
+                        Lấy API key tại
+                        <a href="https://aistudio.google.com/api-keys" target="_blank"
+                            rel="noreferrer">aistudio.google.com/api-keys</a>
+                    </p>
+                </div>
+                <div class="controls-footer" style="justify-content: flex-end; margin-top: 0.5rem;">
+                    <button id="save-api-settings-btn">
+                        <span>Đóng</span>
                         <div class="btn-shine"></div>
                     </button>
                 </div>
