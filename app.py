@@ -3,6 +3,7 @@ import base64
 import uuid
 import glob
 import json
+import shutil
 from datetime import datetime
 from io import BytesIO
 from send2trash import send2trash
@@ -13,6 +14,95 @@ from PIL import Image, PngImagePlugin
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+PREVIEW_MAX_DIMENSION = 1024
+PREVIEW_JPEG_QUALITY = 85
+
+try:
+    RESAMPLE_FILTER = Image.Resampling.LANCZOS
+except AttributeError:
+    if hasattr(Image, 'LANCZOS'):
+        RESAMPLE_FILTER = Image.LANCZOS
+    else:
+        RESAMPLE_FILTER = Image.BICUBIC
+
+FORMAT_BY_EXTENSION = {
+    '.jpg': 'JPEG',
+    '.jpeg': 'JPEG',
+    '.png': 'PNG',
+    '.webp': 'WEBP',
+}
+
+
+def _normalize_extension(ext):
+    if not ext:
+        return '.png'
+    ext = ext.lower()
+    if not ext.startswith('.'):
+        ext = f'.{ext}'
+    return ext
+
+
+def _format_for_extension(ext):
+    return FORMAT_BY_EXTENSION.get(ext, 'PNG')
+
+
+def save_compressed_preview(image, filepath, extension):
+    extension = _normalize_extension(extension)
+    image_copy = image.copy()
+    image_copy.thumbnail((PREVIEW_MAX_DIMENSION, PREVIEW_MAX_DIMENSION), RESAMPLE_FILTER)
+    image_format = _format_for_extension(extension)
+    save_kwargs = {}
+
+    if image_format == 'JPEG':
+        if image_copy.mode not in ('RGB', 'RGBA'):
+            image_copy = image_copy.convert('RGB')
+        save_kwargs.update(quality=PREVIEW_JPEG_QUALITY, optimize=True, progressive=True)
+    elif image_format == 'WEBP':
+        save_kwargs.update(quality=PREVIEW_JPEG_QUALITY, method=6)
+    elif image_format == 'PNG':
+        save_kwargs.update(optimize=True)
+
+    image_copy.save(filepath, format=image_format, **save_kwargs)
+
+
+def save_preview_image(preview_dir, extension='.png', source_bytes=None, source_path=None):
+    extension = _normalize_extension(extension)
+    filename = f"template_{uuid.uuid4()}{extension}"
+    filepath = os.path.join(preview_dir, filename)
+
+    try:
+        image = None
+        if source_bytes is not None:
+            image = Image.open(BytesIO(source_bytes))
+        elif source_path is not None:
+            image = Image.open(source_path)
+
+        if image is not None:
+            save_compressed_preview(image, filepath, extension)
+            return filename
+        elif source_bytes is not None:
+            with open(filepath, 'wb') as f:
+                f.write(source_bytes)
+            return filename
+        elif source_path is not None:
+            shutil.copy2(source_path, filepath)
+            return filename
+    except Exception as exc:
+        print(f"Error saving preview image '{filename}': {exc}")
+        try:
+            if source_bytes is not None:
+                with open(filepath, 'wb') as f:
+                    f.write(source_bytes)
+                return filename
+            if source_path is not None:
+                shutil.copy2(source_path, filepath)
+                return filename
+        except Exception as fallback_exc:
+            print(f"Fallback saving preview image failed: {fallback_exc}")
+        return None
+
+    return None
 
 FAVORITES_FILE = os.path.join(os.path.dirname(__file__), 'template_favorites.json')
 
@@ -399,15 +489,17 @@ def save_template():
         if 'preview' in request.files:
             file = request.files['preview']
             if file.filename:
-                ext = os.path.splitext(file.filename)[1]
-                if not ext:
-                    ext = '.png'
-                    
-                filename = f"template_{uuid.uuid4()}{ext}"
-                filepath = os.path.join(preview_dir, filename)
-                file.save(filepath)
-                
-                preview_path = url_for('static', filename=f'preview/{filename}')
+                ext = os.path.splitext(file.filename)[1] or '.png'
+                file.stream.seek(0)
+                file_bytes = file.read()
+                preview_filename = save_preview_image(
+                    preview_dir=preview_dir,
+                    extension=ext,
+                    source_bytes=file_bytes
+                )
+
+                if preview_filename:
+                    preview_path = url_for('static', filename=f'preview/{preview_filename}')
         
         # If no file uploaded, check if URL/path provided
         if not preview_path:
@@ -433,13 +525,16 @@ def save_template():
                             parsed = urlparse(preview_url)
                             ext = os.path.splitext(parsed.path)[1] or '.png'
                         
-                        filename = f"template_{uuid.uuid4()}{ext}"
-                        filepath = os.path.join(preview_dir, filename)
-                        
-                        with open(filepath, 'wb') as f:
-                            f.write(response.content)
-                        
-                        preview_path = url_for('static', filename=f'preview/{filename}')
+                        preview_filename = save_preview_image(
+                            preview_dir=preview_dir,
+                            extension=ext,
+                            source_bytes=response.content
+                        )
+
+                        if preview_filename:
+                            preview_path = url_for('static', filename=f'preview/{preview_filename}')
+                        else:
+                            preview_path = preview_url
                     
                     elif preview_url.startswith('/static/'):
                         # Local path - copy to preview folder
@@ -448,13 +543,16 @@ def save_template():
                         
                         if os.path.exists(source_path):
                             ext = os.path.splitext(source_path)[1] or '.png'
-                            filename = f"template_{uuid.uuid4()}{ext}"
-                            dest_path = os.path.join(preview_dir, filename)
-                            
-                            import shutil
-                            shutil.copy2(source_path, dest_path)
-                            
-                            preview_path = url_for('static', filename=f'preview/{filename}')
+                            preview_filename = save_preview_image(
+                                preview_dir=preview_dir,
+                                extension=ext,
+                                source_path=source_path
+                            )
+
+                            if preview_filename:
+                                preview_path = url_for('static', filename=f'preview/{preview_filename}')
+                            else:
+                                preview_path = preview_url
                         else:
                             # File doesn't exist, use original path
                             preview_path = preview_url
@@ -543,10 +641,16 @@ def update_template():
             file = request.files['preview']
             if file.filename:
                 ext = os.path.splitext(file.filename)[1] or '.png'
-                filename = f"template_{uuid.uuid4()}{ext}"
-                filepath = os.path.join(preview_dir, filename)
-                file.save(filepath)
-                preview_path = url_for('static', filename=f'preview/{filename}')
+                file.stream.seek(0)
+                file_bytes = file.read()
+                preview_filename = save_preview_image(
+                    preview_dir=preview_dir,
+                    extension=ext,
+                    source_bytes=file_bytes
+                )
+
+                if preview_filename:
+                    preview_path = url_for('static', filename=f'preview/{preview_filename}')
 
         if not preview_path:
             preview_url = request.form.get('preview_path')
@@ -567,13 +671,16 @@ def update_template():
                             parsed = urlparse(preview_url)
                             ext = os.path.splitext(parsed.path)[1] or '.png'
 
-                        filename = f"template_{uuid.uuid4()}{ext}"
-                        filepath = os.path.join(preview_dir, filename)
+                        preview_filename = save_preview_image(
+                            preview_dir=preview_dir,
+                            extension=ext,
+                            source_bytes=response.content
+                        )
 
-                        with open(filepath, 'wb') as f:
-                            f.write(response.content)
-
-                        preview_path = url_for('static', filename=f'preview/{filename}')
+                        if preview_filename:
+                            preview_path = url_for('static', filename=f'preview/{preview_filename}')
+                        else:
+                            preview_path = preview_url
 
                     elif preview_url.startswith('/static/'):
                         rel_path = preview_url.split('/static/')[1]
@@ -581,13 +688,16 @@ def update_template():
 
                         if os.path.exists(source_path):
                             ext = os.path.splitext(source_path)[1] or '.png'
-                            filename = f"template_{uuid.uuid4()}{ext}"
-                            dest_path = os.path.join(preview_dir, filename)
+                            preview_filename = save_preview_image(
+                                preview_dir=preview_dir,
+                                extension=ext,
+                                source_path=source_path
+                            )
 
-                            import shutil
-                            shutil.copy2(source_path, dest_path)
-
-                            preview_path = url_for('static', filename=f'preview/{filename}')
+                            if preview_filename:
+                                preview_path = url_for('static', filename=f'preview/{preview_filename}')
+                            else:
+                                preview_path = preview_url
                         else:
                             preview_path = preview_url
                     else:
