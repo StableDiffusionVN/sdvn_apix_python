@@ -404,6 +404,129 @@ document.addEventListener('DOMContentLoaded', () => {
     const TEMPLATE_TAG_LIMIT = 8;
     let templateTags = [];
 
+    const TEMPLATE_PREVIEW_MAX_DIMENSION = 1024;
+    const TEMPLATE_PREVIEW_QUALITY = 0.85;
+
+    function getExtensionFromMime(mime) {
+        if (!mime) return 'png';
+        const normalized = mime.toLowerCase();
+        if (normalized.includes('jpeg') || normalized.includes('jpg')) {
+            return 'jpg';
+        }
+        if (normalized.includes('webp')) {
+            return 'webp';
+        }
+        if (normalized.includes('png')) {
+            return 'png';
+        }
+        return 'png';
+    }
+
+    function ensurePreviewFileName(original, mimeType) {
+        const baseName = (original || 'preview').replace(/\.[^.]+$/, '');
+        const extension = getExtensionFromMime(mimeType);
+        return `${baseName}.${extension}`;
+    }
+
+    function loadImageFromFile(file) {
+        return new Promise((resolve, reject) => {
+            const objectUrl = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve(img);
+            };
+            img.onerror = (err) => {
+                URL.revokeObjectURL(objectUrl);
+                reject(err);
+            };
+            img.src = objectUrl;
+        });
+    }
+
+    async function getImageBitmapFromFile(file) {
+        if (window.createImageBitmap) {
+            try {
+                return await createImageBitmap(file);
+            } catch (error) {
+                console.warn('createImageBitmap failed, falling back to Image element', error);
+            }
+        }
+        return loadImageFromFile(file);
+    }
+
+    function canvasToBlob(canvas, type, quality) {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    resolve(blob);
+                } else {
+                    reject(new Error('Canvas toBlob returned null'));
+                }
+            }, type, quality);
+        });
+    }
+
+    async function compressPreviewFileForUpload(file) {
+        if (!file || !file.type || !file.type.startsWith('image/')) {
+            return { blob: file, filename: file?.name || 'preview.png' };
+        }
+
+        try {
+            const bitmap = await getImageBitmapFromFile(file);
+            const bitmapWidth = typeof bitmap.width === 'number' && bitmap.width > 0 ? bitmap.width : (bitmap.naturalWidth || 0);
+            const bitmapHeight = typeof bitmap.height === 'number' && bitmap.height > 0 ? bitmap.height : (bitmap.naturalHeight || 0);
+            if (!bitmapWidth || !bitmapHeight) {
+                throw new Error('Invalid image dimensions');
+            }
+
+            const maxSide = Math.max(bitmapWidth, bitmapHeight);
+            const scale = maxSide > TEMPLATE_PREVIEW_MAX_DIMENSION ? TEMPLATE_PREVIEW_MAX_DIMENSION / maxSide : 1;
+            const targetWidth = Math.max(1, Math.round(bitmapWidth * scale));
+            const targetHeight = Math.max(1, Math.round(bitmapHeight * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                throw new Error('Unable to create canvas context');
+            }
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+
+            if (bitmap.close) {
+                bitmap.close();
+            }
+
+            let targetType = file.type.toLowerCase();
+            if (!targetType.startsWith('image/')) {
+                targetType = 'image/png';
+            }
+
+            let blob;
+            const quality = targetType === 'image/png' ? undefined : TEMPLATE_PREVIEW_QUALITY;
+            try {
+                blob = await canvasToBlob(canvas, targetType, quality);
+            } catch (error) {
+                if (targetType !== 'image/png') {
+                    targetType = 'image/png';
+                    blob = await canvasToBlob(canvas, targetType);
+                } else {
+                    throw error;
+                }
+            }
+
+            const filename = ensurePreviewFileName(file.name, targetType);
+            return { blob, filename };
+        } catch (error) {
+            console.warn('Failed to compress template preview, falling back to original file', error);
+            return { blob: file, filename: file.name || 'preview.png' };
+        }
+    }
+
     function normalizeRawTags(raw) {
         if (!raw) return [];
         if (Array.isArray(raw)) {
@@ -880,7 +1003,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('tags', JSON.stringify(templateTags));
 
                 if (currentPreviewFile) {
-                    formData.append('preview', currentPreviewFile);
+                    const previewPayload = await compressPreviewFileForUpload(currentPreviewFile);
+                    formData.append('preview', previewPayload.blob, previewPayload.filename);
                 } else if (currentPreviewUrl) {
                     formData.append('preview_path', currentPreviewUrl);
                 }
