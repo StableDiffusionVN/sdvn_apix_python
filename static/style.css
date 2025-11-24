@@ -1016,14 +1016,46 @@ button#generate-btn:disabled {
 
 .template-gallery-controls {
     display: flex;
+    flex-direction: column;
     gap: 0.75rem;
-    align-items: center;
-    flex-wrap: wrap;
 }
 
-.template-search-container {
-    flex: 1;
-    min-width: 200px;
+.template-gallery-search-row,
+.template-gallery-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.template-gallery-filter-row {
+    justify-content: flex-start;
+}
+
+.template-gallery-search-row {
+    width: 100%;
+}
+
+.template-gallery-search-row .template-search-container {
+    width: 100%;
+}
+
+@media (min-width: 1025px) {
+    .template-gallery-controls {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .template-gallery-search-row {
+        flex: 1 1 320px;
+    }
+
+    .template-gallery-filter-row {
+        flex: 0 1 auto;
+        justify-content: flex-end;
+        overflow: visible;
+    }
 }
 
 .template-search-input {
@@ -1267,16 +1299,6 @@ button#generate-btn:disabled {
         height: 120px;
     }
     
-    .template-gallery-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .template-search-container,
-    .template-category-select {
-        width: 100%;
-        min-width: unset;
-    }
 }
 
 /* Spinner */
@@ -1344,7 +1366,9 @@ button#generate-btn:disabled {
 
     .image-display-area {
         padding: 1.25rem;
-        min-height: 260px;
+        min-height: 320px;
+        max-height: min(70vh, 520px);
+        flex: none;
     }
 
     .canvas-toolbar {
@@ -1360,6 +1384,39 @@ button#generate-btn:disabled {
     .top-toolbar {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    #template-gallery-state {
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    #template-gallery-state .template-gallery-container {
+        max-height: min(70vh, 520px);
+        min-height: 320px;
+    }
+
+    #template-gallery-state .template-gallery-container,
+    #template-gallery-state .template-card-grid {
+        min-height: 0;
+    }
+
+    .template-gallery-controls {
+        gap: 0.5rem;
+    }
+
+    .template-gallery-search-row {
+        order: 0;
+    }
+
+    .template-gallery-filter-row {
+        order: 1;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+
+    .template-gallery-filter-row > * {
+        flex: 0 0 auto;
     }
 }
 

@@ -262,6 +262,9 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
         const controls = document.createElement('div');
         controls.className = 'template-gallery-controls';
 
+        const searchRow = document.createElement('div');
+        searchRow.className = 'template-gallery-search-row';
+
         const searchContainer = document.createElement('div');
         searchContainer.className = 'template-search-container';
         const searchInput = document.createElement('input');
@@ -285,7 +288,8 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
         });
 
         searchContainer.appendChild(searchInput);
-        controls.appendChild(searchContainer);
+        searchRow.appendChild(searchContainer);
+        controls.appendChild(searchRow);
 
         const modeSelect = document.createElement('select');
         modeSelect.className = 'template-mode-select';
@@ -305,7 +309,6 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
             currentMode = e.target.value;
             render();
         });
-        controls.appendChild(modeSelect);
 
         const categorySelect = document.createElement('select');
         categorySelect.className = 'template-category-select';
@@ -324,7 +327,6 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
             currentCategory = e.target.value;
             render();
         });
-        controls.appendChild(categorySelect);
 
         const favoritesToggle = document.createElement('button');
         favoritesToggle.type = 'button';
@@ -343,7 +345,12 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
             favoriteFilterActive = !favoriteFilterActive;
             render();
         });
-        controls.appendChild(favoritesToggle);
+        const filterRow = document.createElement('div');
+        filterRow.className = 'template-gallery-filter-row';
+
+        filterRow.appendChild(modeSelect);
+        filterRow.appendChild(categorySelect);
+        filterRow.appendChild(favoritesToggle);
 
         const userToggle = document.createElement('button');
         userToggle.type = 'button';
@@ -360,7 +367,7 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
             userTemplateFilterActive = !userTemplateFilterActive;
             render();
         });
-        controls.appendChild(userToggle);
+        filterRow.appendChild(userToggle);
 
         const createTemplateBtn = document.createElement('button');
         createTemplateBtn.className = 'template-create-btn';
@@ -377,7 +384,9 @@ export function createTemplateGallery({ container, onSelectTemplate }) {
                 window.openCreateTemplateModal();
             }
         });
-        controls.appendChild(createTemplateBtn);
+        filterRow.appendChild(createTemplateBtn);
+
+        controls.appendChild(filterRow);
 
         header.appendChild(controls);
         container.appendChild(header);
