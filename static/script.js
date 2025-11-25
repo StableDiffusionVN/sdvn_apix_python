@@ -1192,6 +1192,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Setup history filter buttons
+    const historyFilterBtns = document.querySelectorAll('.history-filter-btn');
+    if (historyFilterBtns.length > 0) {
+        // Set initial active state based on saved filter
+        const currentFilter = gallery.getCurrentFilter();
+        historyFilterBtns.forEach(btn => {
+            if (btn.dataset.filter === currentFilter) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Add click event listeners
+        historyFilterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filterType = btn.dataset.filter;
+                
+                // Update active state
+                historyFilterBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Apply filter
+                gallery.setFilter(filterType);
+            });
+        });
+    }
+
+    // Setup history search input
+    const historySearchInput = document.getElementById('history-search-input');
+    if (historySearchInput) {
+        // Set initial value from saved search
+        historySearchInput.value = gallery.getSearchQuery();
+
+        // Search on input with debounce
+        let searchTimeout;
+        historySearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                gallery.setSearch(e.target.value);
+            }, 300); // 300ms debounce
+        });
+    }
+
+
     function setViewState(state) {
         placeholderState.classList.add('hidden');
         loadingState.classList.add('hidden');

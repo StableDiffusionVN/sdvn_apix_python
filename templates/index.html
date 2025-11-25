@@ -236,7 +236,17 @@
                 </div>
             </main>
             <section class="history-section">
-                <h3>History</h3>
+                <div class="history-header">
+                    <h3>History</h3>
+                    <div class="history-filter-group">
+                        <input type="text" id="history-search-input" class="history-search-input" placeholder="Day...">
+                        <button type="button" class="history-filter-btn active" data-filter="all">All</button>
+                        <button type="button" class="history-filter-btn" data-filter="today">Today</button>
+                        <button type="button" class="history-filter-btn" data-filter="week">This Week</button>
+                        <button type="button" class="history-filter-btn" data-filter="month">This Month</button>
+                        <button type="button" class="history-filter-btn" data-filter="year">This Year</button>
+                    </div>
+                </div>
                 <div id="gallery-grid" class="gallery-grid">
                     <!-- Gallery items will be injected here -->
                 </div>
