@@ -183,6 +183,7 @@ def generate_image():
     if multipart:
         form = request.form
         prompt = form.get('prompt')
+        note = form.get('note', '')
         aspect_ratio = form.get('aspect_ratio')
         resolution = form.get('resolution', '2K')
         api_key = form.get('api_key') or os.environ.get('GOOGLE_API_KEY')
@@ -191,6 +192,7 @@ def generate_image():
     else:
         data = request.get_json() or {}
         prompt = data.get('prompt')
+        note = data.get('note', '')
         aspect_ratio = data.get('aspect_ratio')
         resolution = data.get('resolution', '2K')
         api_key = data.get('api_key') or os.environ.get('GOOGLE_API_KEY')
@@ -342,6 +344,7 @@ def generate_image():
 
                 metadata = {
                     'prompt': prompt,
+                    'note': note,
                     'aspect_ratio': aspect_ratio or 'Auto',
                     'resolution': resolution,
                     'reference_images': final_reference_paths,

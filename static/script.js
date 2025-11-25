@@ -63,6 +63,7 @@ const POPUP_CONTENT = {
 document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn');
     const promptInput = document.getElementById('prompt');
+    const promptNoteInput = document.getElementById('prompt-note');
     const aspectRatioInput = document.getElementById('aspect-ratio');
     const resolutionInput = document.getElementById('resolution');
     const apiKeyInput = document.getElementById('api-key');
@@ -192,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     refreshApiKeyVisibility();
     promptInput.addEventListener('input', persistSettings);
+    promptNoteInput.addEventListener('input', persistSettings);
     aspectRatioInput.addEventListener('change', persistSettings);
     resolutionInput.addEventListener('change', persistSettings);
 
@@ -229,6 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const formData = buildGenerateFormData({
                 prompt: task.prompt,
+                note: task.note || '',
                 aspect_ratio: task.aspectRatio,
                 resolution: task.resolution,
                 api_key: task.apiKey,
@@ -263,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addToQueue() {
         const prompt = promptInput.value.trim();
+        const note = promptNoteInput.value.trim();
         const aspectRatio = aspectRatioInput.value;
         const resolution = resolutionInput.value;
         const apiKey = apiKeyInput.value.trim();
@@ -277,8 +281,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Concatenate prompt with note if note exists
+        const finalPrompt = note ? `${prompt} ${note}` : prompt;
+
         generationQueue.push({
-            prompt,
+            prompt: finalPrompt,
+            note: note,  // Store original note separately for metadata
             aspectRatio,
             resolution,
             apiKey
@@ -1264,6 +1272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyMetadata(metadata) {
         if (!metadata) return;
         if (metadata.prompt) promptInput.value = metadata.prompt;
+        if (metadata.note) promptNoteInput.value = metadata.note;
         if (metadata.aspect_ratio) aspectRatioInput.value = metadata.aspect_ratio;
         if (metadata.resolution) resolutionInput.value = metadata.resolution;
         
@@ -1348,12 +1357,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
             if (!saved) return {};
 
-            const { apiKey, aspectRatio, resolution, prompt, referenceImages } = JSON.parse(saved);
+            const { apiKey, aspectRatio, resolution, prompt, promptNote, referenceImages } = JSON.parse(saved);
             if (apiKey) apiKeyInput.value = apiKey;
             if (aspectRatio) aspectRatioInput.value = aspectRatio;
             if (resolution) resolutionInput.value = resolution;
             if (prompt) promptInput.value = prompt;
-            return { apiKey, aspectRatio, resolution, prompt, referenceImages };
+            if (promptNote) promptNoteInput.value = promptNote;
+            return { apiKey, aspectRatio, resolution, prompt, promptNote, referenceImages };
         } catch (error) {
             console.warn('Unable to load cached settings', error);
             return {};
@@ -1368,6 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 aspectRatio: aspectRatioInput.value,
                 resolution: resolutionInput.value,
                 prompt: promptInput.value.trim(),
+                promptNote: promptNoteInput.value.trim(),
                 referenceImages: slotManager.serializeReferenceImages(),
             };
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));

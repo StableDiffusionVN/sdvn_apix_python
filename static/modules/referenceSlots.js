@@ -2,7 +2,7 @@ import { dataUrlToBlob, withCacheBuster } from './utils.js';
 
 export function createReferenceSlotManager(imageInputGrid, options = {}) {
     const MAX_IMAGE_SLOTS = 16;
-    const INITIAL_IMAGE_SLOTS = 4;
+    const INITIAL_IMAGE_SLOTS = 2;
     const onChange = options.onChange;
     const imageSlotState = [];
     let cachedReferenceImages = [];
