@@ -195,31 +195,43 @@ document.addEventListener('DOMContentLoaded', () => {
     aspectRatioInput.addEventListener('change', persistSettings);
     resolutionInput.addEventListener('change', persistSettings);
 
-    generateBtn.addEventListener('click', async () => {
-        const prompt = promptInput.value.trim();
-        const aspectRatio = aspectRatioInput.value;
-        const resolution = resolutionInput.value;
-        const apiKey = apiKeyInput.value.trim();
+    const queueCounter = document.getElementById('queue-counter');
+    const queueCountText = document.getElementById('queue-count-text');
 
-        if (!apiKey) {
-            openApiSettings();
+    let generationQueue = [];
+    let isProcessingQueue = false;
+
+    function updateQueueCounter() {
+        // Count includes current processing item + items in queue
+        const count = generationQueue.length + (isProcessingQueue ? 1 : 0);
+        if (count > 0) {
+            queueCounter.classList.remove('hidden');
+            queueCountText.textContent = count;
+        } else {
+            queueCounter.classList.add('hidden');
+        }
+    }
+
+    async function processNextInQueue() {
+        if (generationQueue.length === 0) {
+            isProcessingQueue = false;
+            updateQueueCounter();
             return;
         }
 
-        if (!prompt) {
-            showError('Please enter a prompt.');
-            return;
-        }
-
-        setViewState('loading');
-        generateBtn.disabled = true;
-
+        // Take task from queue FIRST, then update state
+        const task = generationQueue.shift();
+        isProcessingQueue = true;
+        updateQueueCounter();
+        
         try {
+            setViewState('loading');
+            
             const formData = buildGenerateFormData({
-                prompt,
-                aspect_ratio: aspectRatio,
-                resolution,
-                api_key: apiKey,
+                prompt: task.prompt,
+                aspect_ratio: task.aspectRatio,
+                resolution: task.resolution,
+                api_key: task.apiKey,
             });
 
             const response = await fetch('/generate', {
@@ -241,15 +253,78 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             showError(error.message);
+            // Wait a bit before next task if error
+            await new Promise(resolve => setTimeout(resolve, 2000));
         } finally {
-            generateBtn.disabled = false;
+            // Process next task
+            processNextInQueue();
         }
+    }
+
+    function addToQueue() {
+        const prompt = promptInput.value.trim();
+        const aspectRatio = aspectRatioInput.value;
+        const resolution = resolutionInput.value;
+        const apiKey = apiKeyInput.value.trim();
+
+        if (!apiKey) {
+            openApiSettings();
+            return;
+        }
+
+        if (!prompt) {
+            showError('Please enter a prompt.');
+            return;
+        }
+
+        generationQueue.push({
+            prompt,
+            aspectRatio,
+            resolution,
+            apiKey
+        });
+
+        updateQueueCounter();
+
+        if (!isProcessingQueue) {
+            processNextInQueue();
+        }
+    }
+
+    generateBtn.addEventListener('click', () => {
+        addToQueue();
     });
 
     document.addEventListener('keydown', handleGenerateShortcut);
     document.addEventListener('keydown', handleResetShortcut);
     document.addEventListener('keydown', handleDownloadShortcut);
     document.addEventListener('keydown', handleTemplateShortcut);
+
+    // Fix for download issue: use fetch/blob to force download
+    if (downloadLink) {
+        downloadLink.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const url = downloadLink.href;
+            const filename = downloadLink.getAttribute('download') || 'image.png';
+
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                
+                const tempLink = document.createElement('a');
+                tempLink.href = blobUrl;
+                tempLink.download = filename;
+                document.body.appendChild(tempLink);
+                tempLink.click();
+                document.body.removeChild(tempLink);
+                window.URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                console.error('Download failed:', error);
+                window.open(url, '_blank');
+            }
+        });
+    }
 
     if (imageDisplayArea) {
         imageDisplayArea.addEventListener('wheel', handleCanvasWheel, { passive: false });

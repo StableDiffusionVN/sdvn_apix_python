@@ -1182,7 +1182,7 @@ button#generate-btn:disabled {
     top: 0.5rem;
     right: 0.5rem;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.35rem;
     z-index: 5;
     opacity: 0;
@@ -1614,6 +1614,97 @@ button#generate-btn:disabled {
     font-size: 2rem;
     color: var(--accent-color);
     opacity: 0.5;
+}
+
+#queue-btn {
+    position: relative;
+    padding: 1rem;
+    background: linear-gradient(135deg, #3b82f6, #60a5fa);
+    color: #fff;
+    border: none;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 10px 15px rgba(59, 130, 246, 0.25);
+    transition: transform 0.1s, filter 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+#queue-btn:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 15px 25px rgba(59, 130, 246, 0.35);
+}
+
+#queue-btn:active {
+    transform: scale(0.98);
+}
+
+#queue-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.queue-counter {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.queue-counter.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+}
+
+.queue-icon {
+    display: flex;
+    align-items: center;
+    color: var(--accent-color);
+}
+
+.queue-spinner {
+    display: flex;
+    align-items: center;
+    color: var(--accent-color);
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.controls-footer {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.controls-footer button {
+    flex: 1;
 }
 
 .category-input-wrapper {
