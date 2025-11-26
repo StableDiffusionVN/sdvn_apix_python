@@ -235,6 +235,7 @@ a:hover {
     justify-content: center;
     border-radius: 0.45rem;
     min-width: 90px;
+    flex:1;
 }
 
 .controls-footer #generate-btn {
@@ -470,6 +471,7 @@ textarea {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex:1;
 }
 
 #confirm-refine-btn:hover {
@@ -1820,10 +1822,6 @@ button#generate-btn:disabled {
 .controls-footer {
     display: flex;
     gap: 0.75rem;
-}
-
-.controls-footer button {
-    flex: 1;
 }
 
 .category-input-wrapper {
