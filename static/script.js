@@ -281,12 +281,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Concatenate prompt with note if note exists
-        const finalPrompt = note ? `${prompt} ${note}` : prompt;
-
+        // Store original prompt and note separately
         generationQueue.push({
-            prompt: finalPrompt,
-            note: note,  // Store original note separately for metadata
+            prompt: prompt,
+            note: note,
             aspectRatio,
             resolution,
             apiKey

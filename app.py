@@ -218,7 +218,10 @@ def generate_image():
 
         # Process reference paths and files
         final_reference_paths = []
-        contents = [prompt]
+        
+        # Merge prompt with note for API call, but keep originals for metadata
+        api_prompt = f"{prompt}. {note}" if note else prompt
+        contents = [api_prompt]
         
         # Parse reference paths from frontend
         frontend_paths = []
