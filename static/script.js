@@ -1192,33 +1192,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Setup history filter buttons
     const historyFilterBtns = document.querySelectorAll('.history-filter-btn');
-    if (historyFilterBtns.length > 0) {
-        // Set initial active state based on saved filter
-        const currentFilter = gallery.getCurrentFilter();
-        historyFilterBtns.forEach(btn => {
-            if (btn.dataset.filter === currentFilter) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
+    const historyFavoritesBtn = document.querySelector('.history-favorites-btn');
 
-        // Add click event listeners
-        historyFilterBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const filterType = btn.dataset.filter;
-                
-                // Update active state
-                historyFilterBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                
-                // Apply filter
-                gallery.setFilter(filterType);
-            });
+    // Set initial active state based on saved filter
+    const currentFilter = gallery.getCurrentFilter();
+    historyFilterBtns.forEach(btn => {
+        if (btn.dataset.filter === currentFilter && !btn.classList.contains('history-favorites-btn')) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Handle favorites button as toggle
+    if (historyFavoritesBtn) {
+        historyFavoritesBtn.addEventListener('click', () => {
+            const isActive = gallery.toggleFavorites();
+            historyFavoritesBtn.classList.toggle('active', isActive);
         });
     }
 
-    // Setup history search input
+    // Handle date filter buttons
+    historyFilterBtns.forEach(btn => {
+        if (!btn.classList.contains('history-favorites-btn')) {
+            btn.addEventListener('click', () => {
+                const filterType = btn.dataset.filter;
+                
+                // Remove active from all date filter buttons (not favorites)
+                historyFilterBtns.forEach(b => {
+                    if (!b.classList.contains('history-favorites-btn')) {
+                        b.classList.remove('active');
+                    }
+                });
+                btn.classList.add('active');
+                gallery.setFilter(filterType);
+            });
+        }
+    });
     const historySearchInput = document.getElementById('history-search-input');
     if (historySearchInput) {
         // Set initial value from saved search

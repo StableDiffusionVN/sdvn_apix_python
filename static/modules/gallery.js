@@ -8,6 +8,8 @@ export function createGallery({ galleryGrid, onSelect }) {
     let currentFilter = 'all';
     let searchQuery = '';
     let allImages = [];
+    let favorites = [];
+    let showOnlyFavorites = false; // New toggle state
 
     // Load saved filter and search from localStorage
     try {
@@ -18,6 +20,22 @@ export function createGallery({ galleryGrid, onSelect }) {
         if (savedSearch) searchQuery = savedSearch;
     } catch (e) {
         console.warn('Failed to load history filter/search', e);
+    }
+
+    // Load favorites from backend
+    async function loadFavorites() {
+        try {
+            const response = await fetch('/gallery_favorites');
+            const data = await response.json();
+            favorites = data.favorites || [];
+        } catch (error) {
+            console.warn('Failed to load gallery favorites', error);
+        }
+    }
+
+    function isFavorite(imageUrl) {
+        const filename = imageUrl.split('/').pop().split('?')[0];
+        return favorites.includes(filename);
     }
 
     // Date comparison utilities
@@ -76,6 +94,11 @@ export function createGallery({ galleryGrid, onSelect }) {
         // First check text search
         if (!matchesSearch(imageUrl)) return false;
         
+        // Check favorites toggle - if enabled, only show favorites
+        if (showOnlyFavorites && !isFavorite(imageUrl)) {
+            return false;
+        }
+        
         // Then check date filter
         if (currentFilter === 'all') return true;
         
@@ -93,6 +116,26 @@ export function createGallery({ galleryGrid, onSelect }) {
                 return isThisYear(timestamp);
             default:
                 return true;
+        }
+    }
+
+    async function toggleFavorite(imageUrl) {
+        const filename = imageUrl.split('/').pop().split('?')[0];
+        
+        try {
+            const response = await fetch('/toggle_gallery_favorite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename })
+            });
+            
+            const data = await response.json();
+            if (data.favorites) {
+                favorites = data.favorites;
+                renderGallery();
+            }
+        } catch (error) {
+            console.error('Failed to toggle favorite', error);
         }
     }
 
@@ -129,8 +172,8 @@ export function createGallery({ galleryGrid, onSelect }) {
             
             // Click to select
             div.addEventListener('click', async (e) => {
-                // Don't select if clicking delete button
-                if (e.target.closest('.delete-btn')) return;
+                // Don't select if clicking delete or favorite button
+                if (e.target.closest('.delete-btn') || e.target.closest('.favorite-btn')) return;
                 
                 const metadata = await readMetadataFromImage(imageUrl);
                 await onSelect?.({ imageUrl, metadata });
@@ -145,6 +188,25 @@ export function createGallery({ galleryGrid, onSelect }) {
                 if (event.dataTransfer) {
                     event.dataTransfer.effectAllowed = 'copy';
                 }
+            });
+            
+            // Toolbar for buttons
+            const toolbar = document.createElement('div');
+            toolbar.className = 'gallery-item-toolbar';
+            
+            // Favorite button
+            const favoriteBtn = document.createElement('button');
+            favoriteBtn.className = 'favorite-btn';
+            if (isFavorite(imageUrl)) {
+                favoriteBtn.classList.add('active');
+            }
+            favoriteBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="${isFavorite(imageUrl) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>`;
+            favoriteBtn.title = isFavorite(imageUrl) ? 'Remove from favorites' : 'Add to favorites';
+            favoriteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await toggleFavorite(imageUrl);
             });
             
             // Delete button
@@ -176,8 +238,11 @@ export function createGallery({ galleryGrid, onSelect }) {
                 }
             });
 
+            toolbar.appendChild(favoriteBtn);
+            toolbar.appendChild(deleteBtn);
+
             div.appendChild(img);
-            div.appendChild(deleteBtn);
+            div.appendChild(toolbar);
             galleryGrid.appendChild(div);
         });
     }
@@ -185,6 +250,7 @@ export function createGallery({ galleryGrid, onSelect }) {
     async function load() {
         if (!galleryGrid) return;
         try {
+            await loadFavorites();
             const response = await fetch(`/gallery?t=${new Date().getTime()}`);
             const data = await response.json();
             allImages = data.images || [];
@@ -221,6 +287,12 @@ export function createGallery({ galleryGrid, onSelect }) {
         renderGallery();
     }
 
+    function toggleFavorites() {
+        showOnlyFavorites = !showOnlyFavorites;
+        renderGallery();
+        return showOnlyFavorites;
+    }
+
     function getCurrentFilter() {
         return currentFilter;
     }
@@ -229,5 +301,9 @@ export function createGallery({ galleryGrid, onSelect }) {
         return searchQuery;
     }
 
-    return { load, setFilter, getCurrentFilter, setSearch, getSearchQuery };
+    function isFavoritesActive() {
+        return showOnlyFavorites;
+    }
+
+    return { load, setFilter, getCurrentFilter, setSearch, getSearchQuery, toggleFavorites, isFavoritesActive };
 }

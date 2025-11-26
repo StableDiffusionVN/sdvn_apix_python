@@ -128,6 +128,26 @@ def save_template_favorites(favorites):
     except Exception as e:
         print(f"Failed to persist template favorites: {e}")
 
+GALLERY_FAVORITES_FILE = os.path.join(os.path.dirname(__file__), 'gallery_favorites.json')
+
+def load_gallery_favorites():
+    if os.path.exists(GALLERY_FAVORITES_FILE):
+        try:
+            with open(GALLERY_FAVORITES_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return [item for item in data if isinstance(item, str)]
+        except json.JSONDecodeError:
+            pass
+    return []
+
+def save_gallery_favorites(favorites):
+    try:
+        with open(GALLERY_FAVORITES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(favorites, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"Failed to persist gallery favorites: {e}")
+
 def parse_tags_field(value):
     tags = []
     if isinstance(value, list):
@@ -475,6 +495,32 @@ def template_favorite():
 
     save_template_favorites(favorites)
     return jsonify({'favorites': favorites})
+
+@app.route('/gallery_favorites', methods=['GET'])
+def get_gallery_favorites():
+    favorites = load_gallery_favorites()
+    return jsonify({'favorites': favorites})
+
+@app.route('/toggle_gallery_favorite', methods=['POST'])
+def toggle_gallery_favorite():
+    data = request.get_json() or {}
+    filename = data.get('filename')
+
+    if not filename:
+        return jsonify({'error': 'Filename is required'}), 400
+
+    # Security: ensure filename is just a basename
+    filename = os.path.basename(filename)
+    
+    favorites = load_gallery_favorites()
+
+    if filename in favorites:
+        favorites = [item for item in favorites if item != filename]
+    else:
+        favorites.append(filename)
+
+    save_gallery_favorites(favorites)
+    return jsonify({'favorites': favorites, 'is_favorite': filename in favorites})
 
 @app.route('/save_template', methods=['POST'])
 def save_template():

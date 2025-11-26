@@ -981,39 +981,87 @@ button#generate-btn:disabled {
     box-shadow: 0 0 25px rgba(251, 191, 36, 0.4);
 }
 
+/* New styles start here */
+.gallery-item-toolbar {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 10;
+}
+
+.gallery-item:hover .gallery-item-toolbar {
+    opacity: 1;
+}
+
+.gallery-item .favorite-btn,
+.gallery-item .delete-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+}
+
+.gallery-item .favorite-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+.gallery-item .favorite-btn {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.gallery-item .favorite-btn.active {
+    color: #ff6b6b;
+}
+
+.gallery-item .favorite-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: scale(1.1);
+}
+
+.gallery-item .delete-btn:hover {
+    background: var(--danger-color);
+    transform: scale(1.1);
+}
+
+.history-favorites-btn {
+    min-width: 36px !important;
+    padding: 0 8px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24.19px;
+}
+
+.history-favorites-btn.active {
+    background: var(--accent-color) !important;
+    height: 24.19px;
+}
+
+.history-favorites-btn.active svg {
+    fill: currentColor;
+}
+/* New styles end here */
+
 .gallery-item img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-}
-
-.gallery-item .delete-btn {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s, background 0.2s;
-    font-size: 14px;
-    line-height: 1;
-    z-index: 10;
-}
-
-.gallery-item:hover .delete-btn {
-    opacity: 1;
-}
-
-.gallery-item .delete-btn:hover {
-    background: rgba(255, 68, 68, 0.9);
 }
 
 /* Template Browser Box */
