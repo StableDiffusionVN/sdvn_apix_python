@@ -241,7 +241,12 @@
             </main>
             <section class="history-section">
                 <div class="history-header">
-                    <h3>History</h3>
+                    <div class="history-source-toggle" role="group" aria-label="Chọn nguồn lịch sử">
+                        <button type="button" class="history-source-btn active" data-source="generated"
+                            aria-pressed="true">History</button>
+                        <button type="button" class="history-source-btn" data-source="uploads"
+                            aria-pressed="false">Upload</button>
+                    </div>
                     <div class="history-filter-group">
                         <input type="text" id="history-search-input" class="history-search-input" placeholder="Day...">
                         <button type="button" class="history-filter-btn history-favorites-btn" data-filter="favorites"

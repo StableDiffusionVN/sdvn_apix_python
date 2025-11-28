@@ -3,10 +3,13 @@ import { extractMetadataFromBlob } from './metadata.js';
 
 const FILTER_STORAGE_KEY = 'gemini-app-history-filter';
 const SEARCH_STORAGE_KEY = 'gemini-app-history-search';
+const SOURCE_STORAGE_KEY = 'gemini-app-history-source';
+const VALID_SOURCES = ['generated', 'uploads'];
 
 export function createGallery({ galleryGrid, onSelect }) {
     let currentFilter = 'all';
     let searchQuery = '';
+    let currentSource = 'generated';
     let allImages = [];
     let favorites = [];
     let showOnlyFavorites = false; // New toggle state
@@ -18,6 +21,11 @@ export function createGallery({ galleryGrid, onSelect }) {
         
         const savedSearch = localStorage.getItem(SEARCH_STORAGE_KEY);
         if (savedSearch) searchQuery = savedSearch;
+
+        const savedSource = localStorage.getItem(SOURCE_STORAGE_KEY);
+        if (savedSource && VALID_SOURCES.includes(savedSource)) {
+            currentSource = savedSource;
+        }
     } catch (e) {
         console.warn('Failed to load history filter/search', e);
     }
@@ -33,9 +41,34 @@ export function createGallery({ galleryGrid, onSelect }) {
         }
     }
 
-    function isFavorite(imageUrl) {
+    function extractRelativePath(imageUrl) {
+        if (!imageUrl) return '';
+        try {
+            const url = new URL(imageUrl, window.location.origin);
+            const path = url.pathname;
+            const staticIndex = path.indexOf('/static/');
+            if (staticIndex !== -1) {
+                return path.slice(staticIndex + '/static/'.length).replace(/^\//, '');
+            }
+            return path.replace(/^\//, '');
+        } catch (error) {
+            const parts = imageUrl.split('/static/');
+            if (parts[1]) return parts[1].split('?')[0];
+            return imageUrl.split('/').pop().split('?')[0];
+        }
+    }
+
+    function getFavoriteKey(imageUrl) {
+        const relative = extractRelativePath(imageUrl);
+        if (relative) return relative;
         const filename = imageUrl.split('/').pop().split('?')[0];
-        return favorites.includes(filename);
+        return `${currentSource}/${filename}`;
+    }
+
+    function isFavorite(imageUrl) {
+        const key = getFavoriteKey(imageUrl);
+        const filename = imageUrl.split('/').pop().split('?')[0];
+        return favorites.includes(key) || favorites.includes(filename);
     }
 
     // Date comparison utilities
@@ -121,12 +154,17 @@ export function createGallery({ galleryGrid, onSelect }) {
 
     async function toggleFavorite(imageUrl) {
         const filename = imageUrl.split('/').pop().split('?')[0];
+        const relativePath = extractRelativePath(imageUrl);
         
         try {
             const response = await fetch('/toggle_gallery_favorite', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename })
+                body: JSON.stringify({
+                    filename,
+                    path: relativePath,
+                    source: currentSource
+                })
             });
             
             const data = await response.json();
@@ -219,11 +257,16 @@ export function createGallery({ galleryGrid, onSelect }) {
 
                 
                 const filename = imageUrl.split('/').pop().split('?')[0];
+                const relativePath = extractRelativePath(imageUrl);
                 try {
                     const res = await fetch('/delete_image', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ filename })
+                        body: JSON.stringify({
+                            filename,
+                            path: relativePath,
+                            source: currentSource
+                        })
                     });
                     
                     if (res.ok) {
@@ -251,7 +294,7 @@ export function createGallery({ galleryGrid, onSelect }) {
         if (!galleryGrid) return;
         try {
             await loadFavorites();
-            const response = await fetch(`/gallery?t=${new Date().getTime()}`);
+            const response = await fetch(`/gallery?source=${currentSource}&t=${new Date().getTime()}`);
             const data = await response.json();
             allImages = data.images || [];
             renderGallery();
@@ -293,6 +336,28 @@ export function createGallery({ galleryGrid, onSelect }) {
         return showOnlyFavorites;
     }
 
+    function setSource(source, { resetFilters = false } = {}) {
+        const normalized = VALID_SOURCES.includes(source) ? source : 'generated';
+        currentSource = normalized;
+        try {
+            localStorage.setItem(SOURCE_STORAGE_KEY, currentSource);
+        } catch (e) {
+            console.warn('Failed to save history source', e);
+        }
+        if (resetFilters) {
+            currentFilter = 'all';
+            showOnlyFavorites = false;
+            searchQuery = '';
+            try {
+                localStorage.setItem(FILTER_STORAGE_KEY, currentFilter);
+                localStorage.setItem(SEARCH_STORAGE_KEY, searchQuery);
+            } catch (e) {
+                console.warn('Failed to reset history filters', e);
+            }
+        }
+        return load();
+    }
+
     function getCurrentFilter() {
         return currentFilter;
     }
@@ -301,8 +366,22 @@ export function createGallery({ galleryGrid, onSelect }) {
         return searchQuery;
     }
 
+    function getCurrentSource() {
+        return currentSource;
+    }
+
     function isFavoritesActive() {
         return showOnlyFavorites;
+    }
+
+    function setFavoritesActive(active) {
+        showOnlyFavorites = Boolean(active);
+        renderGallery();
+        return showOnlyFavorites;
+    }
+
+    function setSearchQuery(value) {
+        setSearch(value);
     }
 
     function navigate(direction) {
@@ -343,5 +422,17 @@ export function createGallery({ galleryGrid, onSelect }) {
         }
     });
 
-    return { load, setFilter, getCurrentFilter, setSearch, getSearchQuery, toggleFavorites, isFavoritesActive };
+    return { 
+        load, 
+        setFilter, 
+        getCurrentFilter, 
+        setSearch, 
+        getSearchQuery, 
+        toggleFavorites, 
+        isFavoritesActive, 
+        setSource, 
+        getCurrentSource,
+        setFavoritesActive,
+        setSearchQuery
+    };
 }

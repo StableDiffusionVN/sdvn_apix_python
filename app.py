@@ -191,6 +191,47 @@ os.makedirs(GENERATED_DIR, exist_ok=True)
 # Ensure uploads directory exists
 UPLOADS_DIR = os.path.join(app.static_folder, 'uploads')
 os.makedirs(UPLOADS_DIR, exist_ok=True)
+ALLOWED_GALLERY_EXTS = ('.png', '.jpg', '.jpeg', '.webp')
+
+
+def normalize_gallery_path(path):
+    """Return a clean path relative to /static without traversal."""
+    if not path:
+        return ''
+    cleaned = path.replace('\\', '/')
+    cleaned = cleaned.split('?', 1)[0]
+    if cleaned.startswith('/'):
+        cleaned = cleaned[1:]
+    if cleaned.startswith('static/'):
+        cleaned = cleaned[len('static/'):]
+    normalized = os.path.normpath(cleaned)
+    if normalized.startswith('..'):
+        return ''
+    return normalized
+
+
+def resolve_gallery_target(source, filename=None, relative_path=None):
+    """Resolve the gallery source (generated/uploads) and absolute filepath."""
+    cleaned_path = normalize_gallery_path(relative_path)
+    candidate_name = cleaned_path or (filename or '')
+    if not candidate_name:
+        return None, None, None
+
+    normalized_name = os.path.basename(candidate_name)
+
+    inferred_source = (source or '').lower()
+    if cleaned_path:
+        first_segment = cleaned_path.split('/')[0]
+        if first_segment in ('generated', 'uploads'):
+            inferred_source = first_segment
+
+    if inferred_source not in ('generated', 'uploads'):
+        inferred_source = 'generated'
+
+    base_dir = UPLOADS_DIR if inferred_source == 'uploads' else GENERATED_DIR
+    filepath = os.path.join(base_dir, normalized_name)
+    storage_key = f"{inferred_source}/{normalized_name}"
+    return inferred_source, filepath, storage_key
 
 def process_prompt_with_placeholders(prompt, note):
     """
@@ -544,20 +585,29 @@ def generate_image():
 
 @app.route('/delete_image', methods=['POST'])
 def delete_image():
-    data = request.get_json()
+    data = request.get_json() or {}
     filename = data.get('filename')
-    
-    if not filename:
+    source = data.get('source')
+    rel_path = data.get('path') or data.get('relative_path')
+
+    resolved_source, filepath, storage_key = resolve_gallery_target(source, filename, rel_path)
+    if not filepath:
         return jsonify({'error': 'Filename is required'}), 400
-        
-    # Security check: ensure filename is just a basename, no paths
-    filename = os.path.basename(filename)
-    filepath = os.path.join(GENERATED_DIR, filename)
     
     if os.path.exists(filepath):
         try:
             send2trash(filepath)
-            return jsonify({'success': True})
+
+            # Clean up favorites entry if it exists
+            favorites = load_gallery_favorites()
+            cleaned_favorites = [
+                item for item in favorites
+                if item != storage_key and item != os.path.basename(filepath)
+            ]
+            if cleaned_favorites != favorites:
+                save_gallery_favorites(cleaned_favorites)
+
+            return jsonify({'success': True, 'source': resolved_source})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     else:
@@ -565,12 +615,19 @@ def delete_image():
 
 @app.route('/gallery')
 def get_gallery():
-    # List all png files in generated dir, sorted by modification time (newest first)
-    files = glob.glob(os.path.join(GENERATED_DIR, '*.png'))
+    # List all images in the chosen source directory, sorted by modification time (newest first)
+    source_param = (request.args.get('source') or 'generated').lower()
+    base_dir = UPLOADS_DIR if source_param == 'uploads' else GENERATED_DIR
+    resolved_source = 'uploads' if base_dir == UPLOADS_DIR else 'generated'
+
+    files = [
+        f for f in glob.glob(os.path.join(base_dir, '*'))
+        if os.path.splitext(f)[1].lower() in ALLOWED_GALLERY_EXTS
+    ]
     files.sort(key=os.path.getmtime, reverse=True)
     
-    image_urls = [url_for('static', filename=f'generated/{os.path.basename(f)}') for f in files]
-    response = jsonify({'images': image_urls})
+    image_urls = [url_for('static', filename=f'{resolved_source}/{os.path.basename(f)}') for f in files]
+    response = jsonify({'images': image_urls, 'source': resolved_source})
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
@@ -652,22 +709,25 @@ def get_gallery_favorites():
 def toggle_gallery_favorite():
     data = request.get_json() or {}
     filename = data.get('filename')
+    source = data.get('source')
+    rel_path = data.get('path') or data.get('relative_path')
 
-    if not filename:
+    resolved_source, _, storage_key = resolve_gallery_target(source, filename, rel_path)
+    if not storage_key:
         return jsonify({'error': 'Filename is required'}), 400
 
-    # Security: ensure filename is just a basename
-    filename = os.path.basename(filename)
-    
     favorites = load_gallery_favorites()
+    legacy_key = os.path.basename(storage_key)
 
-    if filename in favorites:
-        favorites = [item for item in favorites if item != filename]
+    if storage_key in favorites or legacy_key in favorites:
+        favorites = [item for item in favorites if item not in (storage_key, legacy_key)]
+        is_favorite = False
     else:
-        favorites.append(filename)
+        favorites.append(storage_key)
+        is_favorite = True
 
     save_gallery_favorites(favorites)
-    return jsonify({'favorites': favorites, 'is_favorite': filename in favorites})
+    return jsonify({'favorites': favorites, 'is_favorite': is_favorite, 'source': resolved_source})
 
 @app.route('/save_template', methods=['POST'])
 def save_template():
