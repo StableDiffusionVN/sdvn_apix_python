@@ -11,7 +11,7 @@ const ZOOM_STEP = 0.1;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 4;
 const SIDEBAR_MIN_WIDTH = 260;
-const SIDEBAR_MAX_WIDTH = 520;
+const SIDEBAR_MAX_WIDTH = 1000;
 
 const infoContent = {
     title: 'Thông tin',
