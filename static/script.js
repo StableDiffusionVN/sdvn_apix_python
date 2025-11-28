@@ -74,6 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn');
     const promptInput = document.getElementById('prompt');
     const promptNoteInput = document.getElementById('prompt-note');
+    const promptHighlight = document.getElementById('prompt-highlight');
+    const promptPlaceholderText = promptInput?.getAttribute('placeholder') || '';
     const aspectRatioInput = document.getElementById('aspect-ratio');
     const resolutionInput = document.getElementById('resolution');
     const apiKeyInput = document.getElementById('api-key');
@@ -197,6 +199,59 @@ document.addEventListener('DOMContentLoaded', () => {
         return formData;
     }
 
+    const promptHighlightColors = [
+        '#34d399', // green
+        '#f97316', // orange
+        '#facc15', // yellow
+        '#38bdf8', // blue
+        '#fb7185', // pink
+        '#a855f7', // purple
+    ];
+
+    function escapeHtml(value) {
+        return value.replace(/[&<>"']/g, (char) => {
+            switch (char) {
+                case '&': return '&amp;';
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '"': return '&quot;';
+                case "'": return '&#39;';
+                default: return char;
+            }
+        });
+    }
+
+    function buildPromptHighlightHtml(value) {
+        if (!promptHighlight) return '';
+        if (!value) {
+            return `<span class="prompt-placeholder">${escapeHtml(promptPlaceholderText)}</span>`;
+        }
+
+        const placeholderRegex = /(\{[^{}]*\}|\[[^\[\]]*\])/g;
+        let lastIndex = 0;
+        let match;
+        let colorIndex = 0;
+        let html = '';
+
+        while ((match = placeholderRegex.exec(value)) !== null) {
+            html += escapeHtml(value.slice(lastIndex, match.index));
+            const color = promptHighlightColors[colorIndex % promptHighlightColors.length];
+            html += `<span class="prompt-highlight-segment" style="color:${color}">${escapeHtml(match[0])}</span>`;
+            lastIndex = match.index + match[0].length;
+            colorIndex++;
+        }
+
+        html += escapeHtml(value.slice(lastIndex));
+        return html || `<span class="prompt-placeholder">${escapeHtml(promptPlaceholderText)}</span>`;
+    }
+
+    function refreshPromptHighlight() {
+        if (!promptHighlight || !promptInput) return;
+        promptHighlight.innerHTML = buildPromptHighlightHtml(promptInput.value);
+        promptHighlight.scrollTop = promptInput.scrollTop;
+        promptHighlight.scrollLeft = promptInput.scrollLeft;
+    }
+
     // --- End Helper Functions ---
 
     let zoomLevel = 1;
@@ -216,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (template.prompt) {
                 promptInput.value = i18n.getText(template.prompt);
                 persistSettings();
+                refreshPromptHighlight();
             }
             // Stay in template gallery view - don't auto-switch
             // User will switch view by selecting image from history or generating
@@ -271,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const savedSettings = loadSettings();
     slotManager.initialize(savedSettings.referenceImages || []);
+    refreshPromptHighlight();
 
     apiKeyInput.addEventListener('input', persistSettings);
     let isApiKeyVisible = false;
@@ -293,7 +350,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     refreshApiKeyVisibility();
-    promptInput.addEventListener('input', persistSettings);
+    promptInput.addEventListener('input', () => {
+        refreshPromptHighlight();
+        persistSettings();
+    });
+    promptInput.addEventListener('scroll', () => {
+        if (!promptHighlight) return;
+        promptHighlight.scrollTop = promptInput.scrollTop;
+        promptHighlight.scrollLeft = promptInput.scrollLeft;
+    });
     promptNoteInput.addEventListener('input', persistSettings);
     aspectRatioInput.addEventListener('change', persistSettings);
     resolutionInput.addEventListener('change', persistSettings);
@@ -665,6 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (data.refined_prompt) {
                     promptInput.value = data.refined_prompt;
+                    refreshPromptHighlight();
                     persistSettings(); // Save the new prompt
                     refineModal.classList.add('hidden');
                 }
@@ -1540,7 +1606,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function applyMetadata(metadata) {
         if (!metadata) return;
-        if (metadata.prompt) promptInput.value = metadata.prompt;
+        if (metadata.prompt) {
+            promptInput.value = metadata.prompt;
+            refreshPromptHighlight();
+        }
         
         // If metadata doesn't have 'note' field, set to empty string instead of keeping current value
         if (metadata.hasOwnProperty('note')) {

@@ -411,6 +411,66 @@ textarea {
     width: 100%;
 }
 
+.prompt-wrapper.prompt-highlighting {
+    position: relative;
+    border: 1px solid var(--border-color);
+    /* border-radius: 0.5rem; */
+    /* background-color: var(--input-bg); */
+    backdrop-filter: blur(6px);
+    overflow: hidden;
+}
+
+.prompt-wrapper.prompt-highlighting:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.prompt-highlight {
+    position: absolute;
+    inset: 0;
+    padding: 0.75rem;
+    overflow: auto;
+    pointer-events: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+    z-index: 1;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    scrollbar-width: none;
+}
+
+.prompt-highlight::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.prompt-highlight-segment {
+    font-weight: 700;
+}
+
+.prompt-highlight .prompt-placeholder {
+    color: var(--text-secondary);
+}
+
+.prompt-wrapper.prompt-highlighting textarea {
+    position: relative;
+    z-index: 2;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--accent-color);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 100px;
+    opacity:0.3
+}
+
 .prompt-actions {
     display: flex;
     justify-content: flex-end;
