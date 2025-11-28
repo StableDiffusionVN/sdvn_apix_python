@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiKeyToggleBtn = document.getElementById('toggle-api-key-visibility');
     const apiKeyEyeIcon = apiKeyToggleBtn?.querySelector('.icon-eye');
     const apiKeyEyeOffIcon = apiKeyToggleBtn?.querySelector('.icon-eye-off');
+    const bodyFontSelect = document.getElementById('body-font');
 
     const placeholderState = document.getElementById('placeholder-state');
     const loadingState = document.getElementById('loading-state');
@@ -150,6 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     toggleResolutionVisibility();
                 }
                 currentTheme = settings.theme || DEFAULT_THEME;
+                applyBodyFont(settings.bodyFont || DEFAULT_BODY_FONT);
+                if (bodyFontSelect && settings.bodyFont) {
+                    bodyFontSelect.value = settings.bodyFont;
+                }
                 return settings;
             }
         } catch (e) {
@@ -173,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
             model: apiModelSelect ? apiModelSelect.value : 'gemini-3-pro-image-preview',
             referenceImages,
             theme: currentTheme || DEFAULT_THEME,
+            bodyFont: bodyFontSelect ? bodyFontSelect.value : DEFAULT_BODY_FONT,
         };
         try {
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
@@ -216,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     const DEFAULT_THEME = 'theme-sdvn';
+    const DEFAULT_BODY_FONT = 'Be Vietnam Pro';
 
     const themeOptionsData = [
         { id: 'theme-sdvn', name: 'SDVN', gradient: 'linear-gradient(to bottom, #5858e6, #151523)' },
@@ -306,6 +313,65 @@ document.addEventListener('DOMContentLoaded', () => {
         noteHighlight.scrollLeft = promptNoteInput.scrollLeft;
     }
 
+    function triggerInputUpdate(targetInput) {
+        if (!targetInput) return;
+        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function getFieldInput(target) {
+        if (target === 'note') return promptNoteInput;
+        return promptInput;
+    }
+
+    async function copyToClipboard(text) {
+        if (!navigator.clipboard?.writeText) {
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            temp.remove();
+            return;
+        }
+        await navigator.clipboard.writeText(text);
+    }
+
+    async function pasteIntoInput(targetInput) {
+        if (!targetInput) return;
+        if (!navigator.clipboard?.readText) {
+            alert('Clipboard paste không được hỗ trợ trong trình duyệt này.');
+            return;
+        }
+        const text = await navigator.clipboard.readText();
+        if (!text && text !== '') return;
+        const start = targetInput.selectionStart ?? targetInput.value.length;
+        const end = targetInput.selectionEnd ?? start;
+        targetInput.value = targetInput.value.slice(0, start) + text + targetInput.value.slice(end);
+        const cursor = start + text.length;
+        requestAnimationFrame(() => {
+            targetInput.setSelectionRange(cursor, cursor);
+            targetInput.focus();
+        });
+        triggerInputUpdate(targetInput);
+    }
+
+    async function handleFieldAction(action, target) {
+        const targetInput = getFieldInput(target);
+        if (!targetInput) return;
+        if (action === 'copy') {
+            await copyToClipboard(targetInput.value);
+            return;
+        }
+        if (action === 'paste') {
+            await pasteIntoInput(targetInput);
+            return;
+        }
+        if (action === 'clear') {
+            targetInput.value = '';
+            triggerInputUpdate(targetInput);
+        }
+    }
+
     function updateThemeSelectionUi() {
         if (!themeOptionsContainer) return;
         themeOptionsContainer.querySelectorAll('.theme-option').forEach(btn => {
@@ -331,6 +397,19 @@ document.addEventListener('DOMContentLoaded', () => {
         applyThemeClass(themeId);
         if (persist) {
             persistSettings();
+        }
+    }
+
+    function applyBodyFont(fontName) {
+        const fontMap = {
+            'Be Vietnam Pro': "'Be Vietnam Pro', sans-serif",
+            'Playwrite AU SA': "'Playwrite AU SA', cursive",
+            'JetBrains Mono': "'JetBrains Mono', monospace",
+        };
+        const cssFont = fontMap[fontName] || fontMap[DEFAULT_BODY_FONT];
+        document.body.style.fontFamily = cssFont;
+        if (bodyFontSelect && fontName) {
+            bodyFontSelect.value = fontName;
         }
     }
 
@@ -430,6 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyThemeClass(currentTheme || DEFAULT_THEME);
     slotManager.initialize(savedSettings.referenceImages || []);
     refreshPromptHighlight();
+    applyBodyFont(savedSettings.bodyFont || DEFAULT_BODY_FONT);
 
     apiKeyInput.addEventListener('input', persistSettings);
     let isApiKeyVisible = false;
@@ -472,7 +552,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     aspectRatioInput.addEventListener('change', persistSettings);
     resolutionInput.addEventListener('change', persistSettings);
+    if (bodyFontSelect) {
+        bodyFontSelect.addEventListener('change', () => {
+            applyBodyFont(bodyFontSelect.value);
+            persistSettings();
+        });
+    }
     window.addEventListener('beforeunload', persistSettings);
+
+    document.querySelectorAll('.field-action-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const action = btn.dataset.action;
+            const target = btn.closest('.field-action-buttons')?.dataset.target;
+            if (!action || !target) return;
+            try {
+                await handleFieldAction(action, target);
+            } catch (err) {
+                console.warn('Field action failed', err);
+                alert('Không thể thực hiện thao tác clipboard. Vui lòng thử lại.');
+            }
+        });
+    });
 
     const queueCounter = document.getElementById('queue-counter');
     const queueCountText = document.getElementById('queue-count-text');
@@ -1770,6 +1870,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             promptNoteInput.value = '';
         }
+        refreshNoteHighlight();
         
         if (metadata.aspect_ratio) aspectRatioInput.value = metadata.aspect_ratio;
         if (metadata.resolution) resolutionInput.value = metadata.resolution;

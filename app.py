@@ -554,8 +554,11 @@ def generate_image():
                 image_url = url_for('static', filename=rel_path)
 
                 metadata = {
-                    'prompt': api_prompt,  # Store the processed prompt
-                    'note': '',  # Note is already merged into prompt
+                    # Keep the exact user input before placeholder expansion
+                    'prompt': prompt,
+                    'note': note,
+                    # Also store the expanded prompt for reference
+                    'processed_prompt': api_prompt,
                     'aspect_ratio': aspect_ratio or 'Auto',
                     'resolution': resolution,
                     'reference_images': final_reference_paths,
