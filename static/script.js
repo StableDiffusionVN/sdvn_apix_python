@@ -75,7 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const promptInput = document.getElementById('prompt');
     const promptNoteInput = document.getElementById('prompt-note');
     const promptHighlight = document.getElementById('prompt-highlight');
+    const noteHighlight = document.getElementById('note-highlight');
+    const themeOptionsContainer = document.getElementById('theme-options');
     const promptPlaceholderText = promptInput?.getAttribute('placeholder') || '';
+    const promptNotePlaceholderText = promptNoteInput?.getAttribute('placeholder') || '';
     const aspectRatioInput = document.getElementById('aspect-ratio');
     const resolutionInput = document.getElementById('resolution');
     const apiKeyInput = document.getElementById('api-key');
@@ -142,10 +145,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (settings.note) promptNoteInput.value = settings.note;
                 if (settings.aspectRatio) aspectRatioInput.value = settings.aspectRatio;
                 if (settings.resolution) resolutionInput.value = settings.resolution;
-                if (settings.model && apiModelSelect) {
-                    apiModelSelect.value = settings.model;
+                if (apiModelSelect) {
+                    apiModelSelect.value = settings.model || apiModelSelect.value || 'gemini-3-pro-image-preview';
                     toggleResolutionVisibility();
                 }
+                currentTheme = settings.theme || DEFAULT_THEME;
                 return settings;
             }
         } catch (e) {
@@ -155,8 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function persistSettings() {
-        // Check if slotManager is initialized
-        const referenceImages = (typeof slotManager !== 'undefined') ? slotManager.getImages() : [];
+        // Safely collect cached reference images for restoration
+        const referenceImages = (typeof slotManager !== 'undefined' && typeof slotManager.serializeReferenceImages === 'function')
+            ? slotManager.serializeReferenceImages()
+            : [];
         
         const settings = {
             apiKey: apiKeyInput.value,
@@ -165,7 +171,8 @@ document.addEventListener('DOMContentLoaded', () => {
             aspectRatio: aspectRatioInput.value,
             resolution: resolutionInput.value,
             model: apiModelSelect ? apiModelSelect.value : 'gemini-3-pro-image-preview',
-            referenceImages: referenceImages,
+            referenceImages,
+            theme: currentTheme || DEFAULT_THEME,
         };
         try {
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
@@ -208,6 +215,22 @@ document.addEventListener('DOMContentLoaded', () => {
         '#a855f7', // purple
     ];
 
+    const DEFAULT_THEME = 'theme-sdvn';
+
+    const themeOptionsData = [
+        { id: 'theme-sdvn', name: 'SDVN', gradient: 'linear-gradient(to bottom, #5858e6, #151523)' },
+        { id: 'theme-vietnam', name: 'Vietnam', gradient: 'radial-gradient(ellipse at bottom, #c62921, #a21a14)' },
+        { id: 'theme-skyline', name: 'Skyline', gradient: 'linear-gradient(to left, #6FB1FC, #4364F7, #0052D4)' },
+        { id: 'theme-hidden-jaguar', name: 'Hidden Jaguar', gradient: 'linear-gradient(to bottom, #0fd850 0%, #f9f047 100%)' },
+        { id: 'theme-wide-matrix', name: 'Wide Matrix', gradient: 'linear-gradient(to top, #fcc5e4 0%, #fda34b 15%, #ff7882 35%, #c8699e 52%, #7046aa 71%, #0c1db8 87%, #020f75 100%)' },
+        { id: 'theme-rainbow', name: 'Rainbow', gradient: 'linear-gradient(to right, #0575E6, #00F260)' },
+        { id: 'theme-soundcloud', name: 'SoundCloud', gradient: 'linear-gradient(to right, #f83600, #fe8c00)' },
+        { id: 'theme-amin', name: 'Amin', gradient: 'linear-gradient(to right, #4A00E0, #8E2DE2)' },
+    ];
+
+    let currentPlaceholderSegments = [];
+    let currentTheme = DEFAULT_THEME;
+
     function escapeHtml(value) {
         return value.replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -224,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildPromptHighlightHtml(value) {
         if (!promptHighlight) return '';
         if (!value) {
+            currentPlaceholderSegments = [];
             return `<span class="prompt-placeholder">${escapeHtml(promptPlaceholderText)}</span>`;
         }
 
@@ -232,17 +256,39 @@ document.addEventListener('DOMContentLoaded', () => {
         let match;
         let colorIndex = 0;
         let html = '';
+        const segments = [];
 
         while ((match = placeholderRegex.exec(value)) !== null) {
             html += escapeHtml(value.slice(lastIndex, match.index));
             const color = promptHighlightColors[colorIndex % promptHighlightColors.length];
+            segments.push({
+                text: match[0],
+                color,
+            });
             html += `<span class="prompt-highlight-segment" style="color:${color}">${escapeHtml(match[0])}</span>`;
             lastIndex = match.index + match[0].length;
             colorIndex++;
         }
 
         html += escapeHtml(value.slice(lastIndex));
+        currentPlaceholderSegments = segments;
         return html || `<span class="prompt-placeholder">${escapeHtml(promptPlaceholderText)}</span>`;
+    }
+
+    function buildNoteHighlightHtml(value) {
+        if (!noteHighlight) return '';
+        if (!value) {
+            return `<span class="note-placeholder">${escapeHtml(promptNotePlaceholderText)}</span>`;
+        }
+
+        const lines = value.split('\n');
+        return lines
+            .map((line, index) => {
+                const color = currentPlaceholderSegments[index]?.color;
+                const styleAttr = color ? ` style="color:${color}"` : '';
+                return `<span class="note-line"${styleAttr}>${escapeHtml(line)}</span>`;
+            })
+            .join('<br>');
     }
 
     function refreshPromptHighlight() {
@@ -250,6 +296,60 @@ document.addEventListener('DOMContentLoaded', () => {
         promptHighlight.innerHTML = buildPromptHighlightHtml(promptInput.value);
         promptHighlight.scrollTop = promptInput.scrollTop;
         promptHighlight.scrollLeft = promptInput.scrollLeft;
+        refreshNoteHighlight();
+    }
+
+    function refreshNoteHighlight() {
+        if (!noteHighlight || !promptNoteInput) return;
+        noteHighlight.innerHTML = buildNoteHighlightHtml(promptNoteInput.value);
+        noteHighlight.scrollTop = promptNoteInput.scrollTop;
+        noteHighlight.scrollLeft = promptNoteInput.scrollLeft;
+    }
+
+    function updateThemeSelectionUi() {
+        if (!themeOptionsContainer) return;
+        themeOptionsContainer.querySelectorAll('.theme-option').forEach(btn => {
+            const isActive = btn.dataset.themeId === currentTheme;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-selected', isActive);
+        });
+    }
+
+    function applyThemeClass(themeId) {
+        const themeIds = themeOptionsData.map(option => option.id);
+        document.body.classList.remove(...themeIds);
+        if (themeId && themeIds.includes(themeId)) {
+            document.body.classList.add(themeId);
+            currentTheme = themeId;
+        } else {
+            currentTheme = '';
+        }
+        updateThemeSelectionUi();
+    }
+
+    function selectTheme(themeId, { persist = true } = {}) {
+        applyThemeClass(themeId);
+        if (persist) {
+            persistSettings();
+        }
+    }
+
+    function renderThemeOptions(initialTheme) {
+        if (!themeOptionsContainer) return;
+        themeOptionsContainer.innerHTML = '';
+        themeOptionsData.forEach(option => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'theme-option';
+            btn.dataset.themeId = option.id;
+            btn.setAttribute('role', 'option');
+            btn.setAttribute('aria-label', `Chọn theme ${option.name}`);
+            btn.style.backgroundImage = option.gradient;
+            btn.innerHTML = `<span class="theme-option-name">${option.name}</span>`;
+            btn.addEventListener('click', () => selectTheme(option.id));
+            themeOptionsContainer.appendChild(btn);
+        });
+        applyThemeClass(initialTheme);
     }
 
     // --- End Helper Functions ---
@@ -326,6 +426,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const savedSettings = loadSettings();
+    renderThemeOptions(currentTheme || DEFAULT_THEME);
+    applyThemeClass(currentTheme || DEFAULT_THEME);
     slotManager.initialize(savedSettings.referenceImages || []);
     refreshPromptHighlight();
 
@@ -359,9 +461,18 @@ document.addEventListener('DOMContentLoaded', () => {
         promptHighlight.scrollTop = promptInput.scrollTop;
         promptHighlight.scrollLeft = promptInput.scrollLeft;
     });
-    promptNoteInput.addEventListener('input', persistSettings);
+    promptNoteInput.addEventListener('input', () => {
+        refreshNoteHighlight();
+        persistSettings();
+    });
+    promptNoteInput.addEventListener('scroll', () => {
+        if (!noteHighlight) return;
+        noteHighlight.scrollTop = promptNoteInput.scrollTop;
+        noteHighlight.scrollLeft = promptNoteInput.scrollLeft;
+    });
     aspectRatioInput.addEventListener('change', persistSettings);
     resolutionInput.addEventListener('change', persistSettings);
+    window.addEventListener('beforeunload', persistSettings);
 
     const queueCounter = document.getElementById('queue-counter');
     const queueCountText = document.getElementById('queue-count-text');

@@ -90,8 +90,11 @@
 
                     <div class="input-group">
                         <label for="prompt-note">Note (sẽ được thêm vào prompt)</label>
-                        <textarea id="prompt-note" placeholder="Thêm chi tiết hoặc điều chỉnh cho prompt..."
-                            rows="2"></textarea>
+                        <div class="note-wrapper note-highlighting">
+                            <div id="note-highlight" class="note-highlight" aria-hidden="true"></div>
+                            <textarea id="prompt-note" placeholder="Thêm chi tiết hoặc điều chỉnh cho prompt..."
+                                rows="2"></textarea>
+                        </div>
                     </div>
 
                     <div class="input-group image-inputs">
@@ -381,7 +384,7 @@
         aria-labelledby="api-settings-title">
         <div class="popup-card" style="max-width: 480px;">
             <header class="popup-header">
-                <h2 id="api-settings-title">Thiết lập API Key</h2>
+                <h2 id="api-settings-title">Setting aPix</h2>
                 <button id="api-settings-close" type="button" class="popup-close" aria-label="Close">&times;</button>
             </header>
             <div class="popup-body api-settings-body">
@@ -420,6 +423,10 @@
                             <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
                         </select>
                     </div>
+                </div>
+                <div class="input-group api-settings-input-group">
+                    <label for="theme-options">Theme</label>
+                    <div id="theme-options" class="theme-option-grid" role="listbox" aria-label="Chọn theme"></div>
                 </div>
                 <div class="controls-footer" style="justify-content: flex-end; margin-top: 0.5rem;">
                     <button id="save-api-settings-btn">

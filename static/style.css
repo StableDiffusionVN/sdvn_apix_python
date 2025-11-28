@@ -1,7 +1,7 @@
 :root {
     --bd-bg: radial-gradient(circle at 15% 20%, #2e2ce0 0%, #0b0b1b 35%, #03030b 100%);
     --panel-bg: rgba(10, 11, 22, 0.95);
-    --panel-backdrop: rgba(6, 7, 20, 0.7);
+    --panel-backdrop: rgba(6, 7, 20, 0.5);
     --border-color: rgba(255, 255, 255, 0.12);
     --text-primary: #f5f5f5;
     --text-secondary: #cbd5f5;
@@ -402,6 +402,16 @@ textarea {
     min-height: 100px;
 }
 
+/* Theme overrides driven from index.css gradients */
+body.theme-sdvn { --bd-bg: radial-gradient(circle at 15% 20%, #2e2ce0 0%, #0b0b1b 35%, #03030b 100%); }
+body.theme-vietnam { --bd-bg: radial-gradient(ellipse at bottom, #c62921, #a21a14); }
+body.theme-skyline { --bd-bg: linear-gradient(to left, #6FB1FC, #4364F7, #0052D4); }
+body.theme-hidden-jaguar { --bd-bg: linear-gradient(to bottom, #0fd850 0%, #f9f047 100%); }
+body.theme-wide-matrix { --bd-bg: linear-gradient(to top, #fcc5e4 0%, #fda34b 15%, #ff7882 35%, #c8699e 52%, #7046aa 71%, #0c1db8 87%, #020f75 100%); }
+body.theme-rainbow { --bd-bg: linear-gradient(to right, #0575E6, #00F260); }
+body.theme-soundcloud { --bd-bg: linear-gradient(to right, #f83600, #fe8c00); }
+body.theme-amin { --bd-bg: linear-gradient(to right, #4A00E0, #8E2DE2); }
+
 .prompt-wrapper {
     position: relative;
     width: 100%;
@@ -414,7 +424,7 @@ textarea {
 .prompt-wrapper.prompt-highlighting {
     position: relative;
     border: 1px solid var(--border-color);
-    /* border-radius: 0.5rem; */
+    border-radius: 0.5rem;
     /* background-color: var(--input-bg); */
     backdrop-filter: blur(6px);
     overflow: hidden;
@@ -467,8 +477,116 @@ textarea {
     font-size: 0.875rem;
     line-height: 1.4;
     resize: vertical;
-    min-height: 100px;
+    width: 100%;
+    height: 100%;
     opacity:0.3
+}
+
+.note-wrapper.note-highlighting {
+    position: relative;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    /* background-color: var(--input-bg); */
+    backdrop-filter: blur(6px);
+}
+
+.note-highlight {
+    position: absolute;
+    inset: 0;
+    padding: 0.75rem;
+    overflow: auto;
+    pointer-events: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+    z-index: 1;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.note-highlight::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.note-highlight .note-placeholder {
+    color: var(--text-secondary);
+}
+
+.note-highlight .note-line {
+    display: inline;
+}
+
+.note-wrapper.note-highlighting textarea {
+    position: relative;
+    z-index: 2;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--accent-color);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    resize: vertical;
+    opacity: 0.3;
+    width: 100%;
+    height: 100%;
+}
+
+.theme-option-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.4rem;
+}
+
+.theme-option {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 1rem;
+    padding: 0.6rem;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease, background-position 0.4s ease;
+    text-align: left;
+    height: 40px;
+    overflow: hidden;
+}
+
+.theme-option::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top right, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.05));
+    pointer-events: none;
+}
+
+.theme-option .theme-option-name {
+    position: relative;
+    z-index: 1;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    font-size: 0.85rem;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.theme-option:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.theme-option:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent-color);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.45);
+    background-position: 80% 20%;
+}
+
+.theme-option.active {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.5), 0 12px 28px rgba(251, 191, 36, 0.18);
 }
 
 .prompt-actions {
@@ -709,7 +827,7 @@ button#generate-btn:disabled {
     padding: 2rem;
     overflow: hidden;
     position: relative;
-    background: radial-gradient(circle at top, rgba(27, 38, 102, 0.4), rgba(6, 6, 18, 0.95));
+    background: var(--panel-backdrop);
     border-radius: 1.5rem;
     cursor: grab;
     user-select: none;
@@ -930,7 +1048,7 @@ button#generate-btn:disabled {
     height: 180px;
     flex-shrink: 0;
     width: 100%;
-    background: transparent;
+    background: var(--panel-backdrop);
 }
 
 .history-section h3 {
