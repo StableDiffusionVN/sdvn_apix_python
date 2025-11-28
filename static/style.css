@@ -399,7 +399,7 @@ select:focus {
 
 textarea {
     resize: vertical;
-    min-height: 100px;
+    min-height: 30px;
 }
 
 /* Theme overrides driven from index.css gradients */
@@ -1924,7 +1924,7 @@ button#generate-btn:disabled {
 
 .template-preview-dropzone {
     width: 100%;
-    height: 220px;
+    height: 150px;
     border: 2px dashed rgba(255, 255, 255, 0.15);
     border-radius: 0.75rem;
     background: rgba(0, 0, 0, 0.2);
@@ -2069,6 +2069,16 @@ button#generate-btn:disabled {
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#create-template-modal .popup-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    margin-right: -0.25rem; /* allow scrollbar without shifting content */
 }
 
 #save-template-btn {

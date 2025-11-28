@@ -742,6 +742,7 @@ def save_template():
         title = request.form.get('title')
         prompt = request.form.get('prompt')
         mode = request.form.get('mode', 'generate')
+        note = request.form.get('note', '')
         category = request.form.get('category', 'User')
         tags_field = request.form.get('tags')
         tags = parse_tags_field(tags_field)
@@ -837,6 +838,7 @@ def save_template():
         new_template = {
             'title': title,
             'prompt': prompt,
+            'note': note,
             'mode': mode,
             'category': category,
             'preview': preview_path,
@@ -895,6 +897,7 @@ def update_template():
         title = request.form.get('title')
         prompt = request.form.get('prompt')
         mode = request.form.get('mode', 'generate')
+        note = request.form.get('note', '')
         category = request.form.get('category', 'User')
         tags_field = request.form.get('tags')
         tags = parse_tags_field(tags_field)
@@ -1004,6 +1007,7 @@ def update_template():
 
             existing_template['title'] = title
             existing_template['prompt'] = prompt
+            existing_template['note'] = note
             existing_template['mode'] = mode
             existing_template['category'] = category
             if preview_path:
@@ -1047,6 +1051,7 @@ def update_template():
         user_prompts[template_index] = {
             'title': title,
             'prompt': prompt,
+            'note': note,
             'mode': mode,
             'category': category,
             'preview': preview_path,

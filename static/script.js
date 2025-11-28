@@ -452,6 +452,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 persistSettings();
                 refreshPromptHighlight();
             }
+            // Fill note (default empty when absent)
+            promptNoteInput.value = template.note !== undefined ? (i18n.getText(template.note) || '') : '';
+            refreshNoteHighlight();
+            persistSettings();
             // Stay in template gallery view - don't auto-switch
             // User will switch view by selecting image from history or generating
         }
@@ -963,6 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const templateTitleInput = document.getElementById('template-title');
     const templatePromptInput = document.getElementById('template-prompt');
+    const templateNoteInput = document.getElementById('template-note');
     const templateModeSelect = document.getElementById('template-mode');
     const templateCategorySelect = document.getElementById('template-category-select');
     const templateCategoryInput = document.getElementById('template-category-input');
@@ -1191,6 +1196,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Pre-fill with template data
         templateTitleInput.value = template.title || '';
         templatePromptInput.value = template.prompt || '';
+        templateNoteInput.value = i18n.getText(template.note) || '';
         templateModeSelect.value = template.mode || 'generate';
         templateCategoryInput.classList.add('hidden');
         templateCategoryInput.value = '';
@@ -1274,6 +1280,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear all fields
         templateTitleInput.value = '';
         templatePromptInput.value = '';
+        templateNoteInput.value = promptNoteInput.value || '';
         templateModeSelect.value = 'generate';
         templateCategoryInput.classList.add('hidden');
         templateCategoryInput.value = '';
@@ -1341,6 +1348,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Pre-fill data
             templateTitleInput.value = '';
             templatePromptInput.value = promptInput.value;
+            templateNoteInput.value = promptNoteInput.value || '';
             templateModeSelect.value = 'generate';
             templateCategoryInput.classList.add('hidden');
             templateCategoryInput.value = '';
@@ -1547,6 +1555,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveTemplateBtn.addEventListener('click', async () => {
             const title = templateTitleInput.value.trim();
             const prompt = templatePromptInput.value.trim();
+            const note = templateNoteInput.value.trim();
             const mode = templateModeSelect.value;
             let category = templateCategorySelect.value;
             
@@ -1574,6 +1583,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData();
                 formData.append('title', title);
                 formData.append('prompt', prompt);
+                formData.append('note', note);
                 formData.append('mode', mode);
                 formData.append('category', category);
                 formData.append('tags', JSON.stringify(templateTags));
