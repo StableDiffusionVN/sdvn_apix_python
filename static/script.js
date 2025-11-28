@@ -48,6 +48,16 @@ const docsContent = {
                 'API key và prompt được lưu để lần sau không phải nhập lại',
             ],
         },
+        {
+            heading: 'Cú pháp đặc biệt',
+            items: [
+                'Placeholder: Dùng {text} hoặc [text] trong prompt (VD: A photo of a {animal})',
+                'Note đơn: Nội dung Note sẽ thay thế cho placeholder',
+                'Note hàng đợi: Dùng dấu | để tạo nhiều ảnh (VD: cat|dog|bird)',
+                'Note nhiều dòng: Mỗi dòng tương ứng một lần tạo ảnh',
+                'Mặc định: Nếu Note trống, dùng giá trị trong ngoặc (VD: {cat|dog} tạo 2 ảnh)',
+            ],
+        },
     ],
 };
 
@@ -97,6 +107,97 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeRefineModalBtn = document.getElementById('close-refine-modal');
     const refineInstructionInput = document.getElementById('refine-instruction');
     const confirmRefineBtn = document.getElementById('confirm-refine-btn');
+
+    // --- Helper Functions (Moved to top to avoid hoisting issues) ---
+
+    // Model Selection Logic
+    const apiModelSelect = document.getElementById('api-model');
+    const resolutionGroup = resolutionInput.closest('.input-group');
+
+    function toggleResolutionVisibility() {
+        if (apiModelSelect && apiModelSelect.value === 'gemini-2.5-flash-image') {
+            resolutionGroup.classList.add('hidden');
+        } else {
+            resolutionGroup.classList.remove('hidden');
+        }
+    }
+
+    if (apiModelSelect) {
+        apiModelSelect.addEventListener('change', () => {
+            toggleResolutionVisibility();
+            persistSettings();
+        });
+    }
+
+    // Load Settings
+    function loadSettings() {
+        try {
+            const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+            if (saved) {
+                const settings = JSON.parse(saved);
+                if (settings.apiKey) apiKeyInput.value = settings.apiKey;
+                if (settings.prompt) promptInput.value = settings.prompt;
+                if (settings.note) promptNoteInput.value = settings.note;
+                if (settings.aspectRatio) aspectRatioInput.value = settings.aspectRatio;
+                if (settings.resolution) resolutionInput.value = settings.resolution;
+                if (settings.model && apiModelSelect) {
+                    apiModelSelect.value = settings.model;
+                    toggleResolutionVisibility();
+                }
+                return settings;
+            }
+        } catch (e) {
+            console.warn('Failed to load settings', e);
+        }
+        return {};
+    }
+
+    function persistSettings() {
+        // Check if slotManager is initialized
+        const referenceImages = (typeof slotManager !== 'undefined') ? slotManager.getImages() : [];
+        
+        const settings = {
+            apiKey: apiKeyInput.value,
+            prompt: promptInput.value,
+            note: promptNoteInput.value,
+            aspectRatio: aspectRatioInput.value,
+            resolution: resolutionInput.value,
+            model: apiModelSelect ? apiModelSelect.value : 'gemini-3-pro-image-preview',
+            referenceImages: referenceImages,
+        };
+        try {
+            localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+        } catch (e) {
+            console.warn('Failed to save settings', e);
+        }
+    }
+
+    // Helper to build form data for generation
+    function buildGenerateFormData({ prompt, note, aspect_ratio, resolution, api_key, model }) {
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+        formData.append('note', note);
+        formData.append('aspect_ratio', aspect_ratio);
+        formData.append('resolution', resolution);
+        formData.append('api_key', api_key);
+        const selectedModel = model || (apiModelSelect ? apiModelSelect.value : 'gemini-3-pro-image-preview');
+        formData.append('model', selectedModel);
+
+        // Add reference images using correct slotManager methods
+        const referenceFiles = slotManager.getReferenceFiles();
+        referenceFiles.forEach(file => {
+            formData.append('reference_images', file);
+        });
+        
+        const referencePaths = slotManager.getReferencePaths();
+        if (referencePaths && referencePaths.length > 0) {
+            formData.append('reference_image_paths', JSON.stringify(referencePaths));
+        }
+
+        return formData;
+    }
+
+    // --- End Helper Functions ---
 
     let zoomLevel = 1;
     let panOffset = { x: 0, y: 0 };
@@ -202,15 +303,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let generationQueue = [];
     let isProcessingQueue = false;
+    let pendingRequests = 0; // Track requests waiting for backend response
 
     function updateQueueCounter() {
-        // Count includes current processing item + items in queue
-        const count = generationQueue.length + (isProcessingQueue ? 1 : 0);
+        // Count includes:
+        // 1. Items waiting in queue
+        // 2. Item currently being processed (isProcessingQueue)
+        // 3. Items waiting for backend response (pendingRequests)
+        const count = generationQueue.length + (isProcessingQueue ? 1 : 0) + pendingRequests;
+        
+        console.log('Queue counter update:', { 
+            queue: generationQueue.length, 
+            processing: isProcessingQueue, 
+            pending: pendingRequests,
+            total: count 
+        });
+        
         if (count > 0) {
-            queueCounter.classList.remove('hidden');
-            queueCountText.textContent = count;
+            if (queueCounter) {
+                queueCounter.classList.remove('hidden');
+                queueCountText.textContent = count;
+            }
         } else {
-            queueCounter.classList.add('hidden');
+            if (queueCounter) {
+                queueCounter.classList.add('hidden');
+            }
         }
     }
 
@@ -224,35 +341,58 @@ document.addEventListener('DOMContentLoaded', () => {
         // Take task from queue FIRST, then update state
         const task = generationQueue.shift();
         isProcessingQueue = true;
-        updateQueueCounter();
+        updateQueueCounter(); // Show counter immediately
         
         try {
             setViewState('loading');
             
-            const formData = buildGenerateFormData({
-                prompt: task.prompt,
-                note: task.note || '',
-                aspect_ratio: task.aspectRatio,
-                resolution: task.resolution,
-                api_key: task.apiKey,
-            });
-
-            const response = await fetch('/generate', {
-                method: 'POST',
-                body: formData,
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to generate image');
-            }
-
-            if (data.image) {
-                displayImage(data.image, data.image_data);
+            // Check if this task already has a result (immediate generation)
+            if (task.immediateResult) {
+                // Display the already-generated image
+                displayImage(task.immediateResult.image, task.immediateResult.image_data);
                 gallery.load();
             } else {
-                throw new Error('No image data received');
+                // Need to generate the image
+                const formData = buildGenerateFormData({
+                    prompt: task.prompt,
+                    note: task.note || '',
+                    aspect_ratio: task.aspectRatio,
+                    resolution: task.resolution,
+                    api_key: task.apiKey,
+                    model: task.model,
+                });
+
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate image');
+                }
+
+                if (data.image) {
+                    displayImage(data.image, data.image_data);
+                    gallery.load();
+                } else if (data.queue && data.prompts && Array.isArray(data.prompts)) {
+                    // Backend returned more items - add them to queue
+                    console.log('Backend returned additional queue items:', data.prompts.length);
+                    data.prompts.forEach(processedPrompt => {
+                        generationQueue.push({
+                            prompt: processedPrompt,
+                            note: '',
+                            aspectRatio: task.aspectRatio,
+                            resolution: task.resolution,
+                            apiKey: task.apiKey,
+                            model: task.model,
+                        });
+                    });
+                    updateQueueCounter();
+                } else {
+                    throw new Error('No image data received');
+                }
             }
         } catch (error) {
             showError(error.message);
@@ -264,12 +404,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function addToQueue() {
+    async function addToQueue() {
         const prompt = promptInput.value.trim();
         const note = promptNoteInput.value.trim();
         const aspectRatio = aspectRatioInput.value;
         const resolution = resolutionInput.value;
         const apiKey = apiKeyInput.value.trim();
+        const selectedModel = apiModelSelect?.value || 'gemini-3-pro-image-preview';
 
         if (!apiKey) {
             openApiSettings();
@@ -281,19 +422,96 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Store original prompt and note separately
-        generationQueue.push({
-            prompt: prompt,
-            note: note,
-            aspectRatio,
-            resolution,
-            apiKey
-        });
+        // Show loading state if not already processing and this is the first request
+        if (!isProcessingQueue && pendingRequests === 0) {
+            setViewState('loading');
+        }
 
+        // Increment pending requests and update counter immediately
+        pendingRequests++;
         updateQueueCounter();
 
-        if (!isProcessingQueue) {
-            processNextInQueue();
+        let fetchCompleted = false;
+
+        try {
+            const formData = buildGenerateFormData({
+                prompt: prompt,
+                note: note,
+                aspect_ratio: aspectRatio,
+                resolution: resolution,
+                api_key: apiKey,
+                model: selectedModel,
+            });
+
+            const response = await fetch('/generate', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+            
+            // Mark fetch as completed and decrement pending
+            // We do this BEFORE adding to queue to avoid double counting
+            fetchCompleted = true;
+            pendingRequests--;
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to generate image');
+            }
+
+            // Check if backend returned a queue
+            if (data.queue && data.prompts && Array.isArray(data.prompts)) {
+                console.log('Backend returned queue with', data.prompts.length, 'prompts');
+                // Add all prompts to the queue
+                data.prompts.forEach(processedPrompt => {
+                    generationQueue.push({
+                        prompt: processedPrompt,
+                        note: '',
+                        aspectRatio,
+                        resolution,
+                        apiKey,
+                        model: selectedModel,
+                    });
+                });
+            } else if (data.image) {
+                console.log('Backend returned single image');
+                // Single image - add to queue for consistent processing
+                generationQueue.push({
+                    prompt: prompt,
+                    note: note,
+                    aspectRatio,
+                    resolution,
+                    apiKey,
+                    model: selectedModel,
+                    immediateResult: {
+                        image: data.image,
+                        image_data: data.image_data
+                    }
+                });
+            } else {
+                throw new Error('Unexpected response from server');
+            }
+
+            // Update counter after adding to queue
+            updateQueueCounter();
+
+            // Start processing queue only if not already processing
+            if (!isProcessingQueue) {
+                console.log('Starting queue processing');
+                processNextInQueue();
+            } else {
+                console.log('Already processing, item added to queue');
+            }
+        } catch (error) {
+            console.error('Error in addToQueue:', error);
+            
+            // If fetch failed (didn't complete), we need to decrement pendingRequests
+            if (!fetchCompleted) {
+                pendingRequests--;
+            }
+            
+            updateQueueCounter();
+            showError(error.message);
         }
     }
 
@@ -1323,7 +1541,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyMetadata(metadata) {
         if (!metadata) return;
         if (metadata.prompt) promptInput.value = metadata.prompt;
-        if (metadata.note) promptNoteInput.value = metadata.note;
+        
+        // If metadata doesn't have 'note' field, set to empty string instead of keeping current value
+        if (metadata.hasOwnProperty('note')) {
+            promptNoteInput.value = metadata.note || '';
+        } else {
+            promptNoteInput.value = '';
+        }
+        
         if (metadata.aspect_ratio) aspectRatioInput.value = metadata.aspect_ratio;
         if (metadata.resolution) resolutionInput.value = metadata.resolution;
         
@@ -1381,62 +1606,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function buildGenerateFormData(fields) {
-        const formData = new FormData();
-
-        Object.entries(fields).forEach(([key, value]) => {
-            if (value !== undefined && value !== null) {
-                formData.append(key, value);
-            }
-        });
-
-        slotManager.getReferenceFiles().forEach(file => {
-            formData.append('reference_images', file, file.name);
-        });
-        
-        const referencePaths = slotManager.getReferencePaths();
-        if (referencePaths && referencePaths.length > 0) {
-            formData.append('reference_image_paths', JSON.stringify(referencePaths));
-        }
-
-        return formData;
-    }
-
-    function loadSettings() {
-        if (typeof localStorage === 'undefined') return {};
-        try {
-            const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-            if (!saved) return {};
-
-            const { apiKey, aspectRatio, resolution, prompt, promptNote, referenceImages } = JSON.parse(saved);
-            if (apiKey) apiKeyInput.value = apiKey;
-            if (aspectRatio) aspectRatioInput.value = aspectRatio;
-            if (resolution) resolutionInput.value = resolution;
-            if (prompt) promptInput.value = prompt;
-            if (promptNote) promptNoteInput.value = promptNote;
-            return { apiKey, aspectRatio, resolution, prompt, promptNote, referenceImages };
-        } catch (error) {
-            console.warn('Unable to load cached settings', error);
-            return {};
-        }
-    }
-
-    function persistSettings() {
-        if (typeof localStorage === 'undefined') return;
-        try {
-            const settings = {
-                apiKey: apiKeyInput.value.trim(),
-                aspectRatio: aspectRatioInput.value,
-                resolution: resolutionInput.value,
-                prompt: promptInput.value.trim(),
-                promptNote: promptNoteInput.value.trim(),
-                referenceImages: slotManager.serializeReferenceImages(),
-            };
-            localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-        } catch (error) {
-            console.warn('Unable to persist settings', error);
-        }
-    }
 
     function handleGenerateShortcut(event) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {

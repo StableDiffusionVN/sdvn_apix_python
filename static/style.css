@@ -1779,22 +1779,20 @@ button#generate-btn:disabled {
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 20px;
     color: var(--text-primary);
     font-size: 0.875rem;
-    font-weight: 500;
-    z-index: 100;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    font-weight: 600;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     transition: all 0.3s ease;
 }
 
 .queue-counter.hidden {
-    opacity: 0;
-    transform: translateY(-10px);
-    pointer-events: none;
+    display: none;
 }
 
 .queue-icon {

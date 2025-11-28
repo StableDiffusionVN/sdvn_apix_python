@@ -305,5 +305,43 @@ export function createGallery({ galleryGrid, onSelect }) {
         return showOnlyFavorites;
     }
 
+    function navigate(direction) {
+        const activeItem = galleryGrid.querySelector('.gallery-item.active');
+        
+        if (!activeItem) {
+            // If nothing active, select the first item on any arrow key
+            const firstItem = galleryGrid.querySelector('.gallery-item');
+            if (firstItem) {
+                firstItem.click();
+                firstItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            return;
+        }
+
+        let targetItem;
+        if (direction === 'prev') {
+            targetItem = activeItem.previousElementSibling;
+        } else if (direction === 'next') {
+            targetItem = activeItem.nextElementSibling;
+        }
+
+        if (targetItem && targetItem.classList.contains('gallery-item')) {
+            targetItem.click();
+            targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    // Setup keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        // Ignore if user is typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        if (e.key === 'ArrowLeft') {
+            navigate('prev');
+        } else if (e.key === 'ArrowRight') {
+            navigate('next');
+        }
+    });
+
     return { load, setFilter, getCurrentFilter, setSearch, getSearchQuery, toggleFavorites, isFavoritesActive };
 }

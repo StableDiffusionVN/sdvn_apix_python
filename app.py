@@ -16,7 +16,7 @@ import logging
 
 app = Flask(__name__)
 log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+log.setLevel(logging.WARNING)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 PREVIEW_MAX_DIMENSION = 1024
@@ -192,6 +192,132 @@ os.makedirs(GENERATED_DIR, exist_ok=True)
 UPLOADS_DIR = os.path.join(app.static_folder, 'uploads')
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
+def process_prompt_with_placeholders(prompt, note):
+    """
+    Process prompt with {text} or [text] placeholders.
+    
+    Logic:
+    1. If prompt has placeholders:
+       - If note is empty:
+         - If placeholder contains pipes (e.g. {cat|dog} or [cat|dog]), generate multiple prompts
+         - If no pipes, keep placeholder as is
+       - If note has content:
+         - If note has pipes (|), split note and replace placeholders for each segment (queue)
+         - If note has newlines, split note and replace placeholders sequentially
+         - If single note, replace all placeholders with note content
+    2. If no placeholders:
+       - Standard behavior: "{prompt}. {note}"
+       
+    Returns:
+        list: List of processed prompts
+    """
+    import re
+    
+    # Regex to find placeholders: {text} or [text]
+    # Matches {content} or [content]
+    placeholder_pattern = r'\{([^{}]+)\}|\[([^\[\]]+)\]'
+    placeholders = re.findall(placeholder_pattern, prompt)
+    
+    # Flatten the list of tuples from findall and filter empty strings
+    # re.findall with groups returns list of tuples like [('content', ''), ('', 'content')]
+    placeholders = [p[0] or p[1] for p in placeholders if p[0] or p[1]]
+    
+    if not placeholders:
+        # Standard behavior
+        return [f"{prompt}. {note}" if note else prompt]
+    
+    # If note is empty, check for default values in placeholders
+    if not note:
+        # Check if any placeholder has pipe-separated values
+        # We only handle the FIRST placeholder with pipes for combinatorial generation to keep it simple
+        # or we could generate for all, but let's stick to the requirement: "creates multiple commands"
+        
+        # Find the first placeholder that has options
+        target_placeholder = None
+        options = []
+        
+        for p in placeholders:
+            if '|' in p:
+                target_placeholder = p
+                options = p.split('|')
+                break
+        
+        if target_placeholder:
+            # Generate a prompt for each option
+            generated_prompts = []
+            for option in options:
+                # Replace the target placeholder with the option
+                # We need to handle both {placeholder} and [placeholder]
+                # Construct regex that matches either {target} or [target]
+                escaped_target = re.escape(target_placeholder)
+                pattern = f'(\\{{{escaped_target}\\}}|\\[{escaped_target}\\])'
+                
+                # Replace only the first occurrence or all? 
+                # Usually all occurrences of the same placeholder string
+                new_prompt = re.sub(pattern, option.strip(), prompt)
+                generated_prompts.append(new_prompt)
+            return generated_prompts
+            
+        # No pipes in placeholders, return prompt as is (placeholders remain)
+        return [prompt]
+        
+    # Note has content
+    if '|' in note:
+        # Split note by pipe and generate a prompt for each segment
+        note_segments = [s.strip() for s in note.split('|') if s.strip()]
+        generated_prompts = []
+        
+        for segment in note_segments:
+            current_prompt = prompt
+            # Replace all placeholders with this segment
+            # We need to replace all found placeholders
+            for p in placeholders:
+                escaped_p = re.escape(p)
+                pattern = f'(\\{{{escaped_p}\\}}|\\[{escaped_p}\\])'
+                current_prompt = re.sub(pattern, segment, current_prompt)
+            generated_prompts.append(current_prompt)
+            
+        return generated_prompts
+        
+    elif '\n' in note:
+        # Split note by newline and replace placeholders sequentially
+        note_lines = [l.strip() for l in note.split('\n') if l.strip()]
+        current_prompt = prompt
+        
+        for i, p in enumerate(placeholders):
+            replacement = ""
+            if i < len(note_lines):
+                replacement = note_lines[i]
+            else:
+                # If fewer lines than placeholders, use default (content inside braces)
+                # If default has pipes, take the first one
+                if '|' in p:
+                    replacement = p.split('|')[0]
+                else:
+                    # Keep the placeholder text but remove braces? 
+                    # Or keep the original placeholder?
+                    # Requirement says: "remaining placeholders use their default text"
+                    replacement = p
+            
+            escaped_p = re.escape(p)
+            pattern = f'(\\{{{escaped_p}\\}}|\\[{escaped_p}\\])'
+            # Replace only the first occurrence of this specific placeholder to allow sequential mapping
+            # But if multiple placeholders have SAME text, this might be ambiguous.
+            # Assuming placeholders are unique or processed left-to-right.
+            # re.sub replaces all by default, count=1 replaces first
+            current_prompt = re.sub(pattern, replacement, current_prompt, count=1)
+            
+        return [current_prompt]
+        
+    else:
+        # Single note content, replace all placeholders
+        current_prompt = prompt
+        for p in placeholders:
+            escaped_p = re.escape(p)
+            pattern = f'(\\{{{escaped_p}\\}}|\\[{escaped_p}\\])'
+            current_prompt = re.sub(pattern, note, current_prompt)
+        return [current_prompt]
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -206,6 +332,7 @@ def generate_image():
         note = form.get('note', '')
         aspect_ratio = form.get('aspect_ratio')
         resolution = form.get('resolution', '2K')
+        model = form.get('model', 'gemini-3-pro-image-preview')
         api_key = form.get('api_key') or os.environ.get('GOOGLE_API_KEY')
         reference_files = request.files.getlist('reference_images')
         reference_paths_json = form.get('reference_image_paths')
@@ -215,6 +342,7 @@ def generate_image():
         note = data.get('note', '')
         aspect_ratio = data.get('aspect_ratio')
         resolution = data.get('resolution', '2K')
+        model = data.get('model', 'gemini-3-pro-image-preview')
         api_key = data.get('api_key') or os.environ.get('GOOGLE_API_KEY')
         reference_files = []
         reference_paths_json = data.get('reference_image_paths')
@@ -229,9 +357,11 @@ def generate_image():
         print("Đang gửi lệnh...", flush=True)
         client = genai.Client(api_key=api_key)
 
-        image_config_args = {
-            "image_size": resolution
-        }
+        image_config_args = {}
+        
+        # Only add resolution if NOT using flash model
+        if model != 'gemini-2.5-flash-image':
+            image_config_args["image_size"] = resolution
 
         if aspect_ratio and aspect_ratio != 'Auto':
             image_config_args["aspect_ratio"] = aspect_ratio
@@ -239,8 +369,25 @@ def generate_image():
         # Process reference paths and files
         final_reference_paths = []
         
-        # Merge prompt with note for API call, but keep originals for metadata
-        api_prompt = f"{prompt}. {note}" if note else prompt
+        # Process prompt with placeholders - returns list of prompts
+        processed_prompts = process_prompt_with_placeholders(prompt, note)
+        
+        # If multiple prompts (queue scenario), return them to frontend for queue processing
+        if len(processed_prompts) > 1:
+            return jsonify({
+                'queue': True,
+                'prompts': processed_prompts,
+                'metadata': {
+                    'original_prompt': prompt,
+                    'original_note': note,
+                    'aspect_ratio': aspect_ratio or 'Auto',
+                    'resolution': resolution,
+                    'model': model
+                }
+            })
+        
+        # Single prompt - continue with normal generation
+        api_prompt = processed_prompts[0]
         contents = [api_prompt]
         
         # Parse reference paths from frontend
@@ -323,8 +470,8 @@ def generate_image():
                     print(f"Error processing uploaded file: {e}")
                     continue
 
-        model_name = "gemini-3-pro-image-preview"
-        print("Đang tạo...", flush=True)
+        model_name = model
+        print(f"Đang tạo với model {model_name}...", flush=True)
         response = client.models.generate_content(
             model=model_name,
             contents=contents,
@@ -366,8 +513,8 @@ def generate_image():
                 image_url = url_for('static', filename=rel_path)
 
                 metadata = {
-                    'prompt': prompt,
-                    'note': note,
+                    'prompt': api_prompt,  # Store the processed prompt
+                    'note': '',  # Note is already merged into prompt
                     'aspect_ratio': aspect_ratio or 'Auto',
                     'resolution': resolution,
                     'reference_images': final_reference_paths,
@@ -942,5 +1089,10 @@ def refine_prompt():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+port_sever = 8888
 if __name__ == '__main__':
-    app.run(debug=True, port=8888)
+    # Use ANSI green text so the startup banner stands out in terminals
+    print("\033[32m" + "aPix Image Workspace running at:" + "\033[0m", flush=True)
+    print("\033[32m" + f"http://localhost:{port_sever}" + "   " + "\033[0m", flush=True)
+    print("\033[32m" + f"http://127.0.0.1:{port_sever}" + "\033[0m", flush=True)
+    app.run(debug=True, port=port_sever)
