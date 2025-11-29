@@ -1,12 +1,7 @@
 /static/generated
-.DS_Store
-.DS_Store
-.DS_Store
-.DS_Store
+*.DS_Store
 /.venv
 /static/uploads
-.DS_Store
 user_prompts.json
 /static/preview
 template_favorites.json
-.DS_Store
