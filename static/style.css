@@ -55,7 +55,7 @@ a:hover {
 
 /* Sidebar */
 .sidebar {
-    width: 320px;
+    width: 450px;
     background: var(--panel-backdrop);
     background-image: radial-gradient(circle at 20% -20%, rgba(251, 191, 36, 0.15), transparent 45%);
     /* border-right: 1px solid var(--border-color); */
@@ -786,9 +786,36 @@ body.theme-amin { --bd-bg: linear-gradient(to right, #4A00E0, #8E2DE2); }
 }
 
 .slot-preview.hidden,
+.slot-edit.hidden,
 .slot-remove.hidden,
 .slot-placeholder.hidden {
     display: none;
+}
+
+.slot-edit {
+    position: absolute;
+    top: 0.35rem;
+    right: 2.25rem;
+    background: rgba(15, 23, 42, 0.85);
+    border: none;
+    border-radius: 999px;
+    color: var(--text-primary);
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    z-index: 3;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.slot-edit:hover {
+    background: rgba(251, 191, 36, 0.25);
+    color: var(--accent-color);
+    transform: scale(1.05);
 }
 
 .slot-remove {

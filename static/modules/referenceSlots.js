@@ -1,4 +1,6 @@
 import { dataUrlToBlob, withCacheBuster } from './utils.js';
+import { ImageEditor } from '../image_editor_modules/editor.js';
+import { injectImageEditorStyles } from '../image_editor_modules/styles.js';
 
 export function createReferenceSlotManager(imageInputGrid, options = {}) {
     const MAX_IMAGE_SLOTS = 16;
@@ -6,6 +8,9 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
     const onChange = options.onChange;
     const imageSlotState = [];
     let cachedReferenceImages = [];
+    
+    // Inject image editor styles once
+    injectImageEditorStyles();
 
     function initialize(initialCached = []) {
         cachedReferenceImages = Array.isArray(initialCached) ? initialCached : [];
@@ -75,6 +80,13 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
         preview.alt = 'Uploaded reference';
         slot.appendChild(preview);
 
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'slot-edit hidden';
+        editBtn.setAttribute('aria-label', 'Edit image');
+        editBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 8H13M22 8H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 16H11M2 16H5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16" cy="8" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle r="3" transform="matrix(-1 0 0 1 8 16)" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        slot.appendChild(editBtn);
+
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'slot-remove hidden';
@@ -89,7 +101,7 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
         slot.appendChild(input);
 
         slot.addEventListener('click', event => {
-            if (event.target === removeBtn) return;
+            if (event.target === removeBtn || event.target === editBtn) return;
             input.click();
         });
 
@@ -127,6 +139,11 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
             if (imageUrl) {
                 await handleSlotDropFromHistory(index, imageUrl);
             }
+        });
+
+        editBtn.addEventListener('click', event => {
+            event.stopPropagation();
+            handleEditImage(index);
         });
 
         removeBtn.addEventListener('click', event => {
@@ -201,12 +218,14 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
         const slot = slotRecord.slot;
         const placeholder = slot.querySelector('.slot-placeholder');
         const preview = slot.querySelector('.slot-preview');
+        const editBtn = slot.querySelector('.slot-edit');
         const removeBtn = slot.querySelector('.slot-remove');
 
         if (slotRecord.data && slotRecord.data.preview) {
             preview.src = slotRecord.data.preview;
             preview.classList.remove('hidden');
             placeholder.classList.add('hidden');
+            editBtn.classList.remove('hidden');
             removeBtn.classList.remove('hidden');
             slot.classList.add('filled');
             slot.classList.remove('empty');
@@ -214,6 +233,7 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
             preview.src = '';
             preview.classList.add('hidden');
             placeholder.classList.remove('hidden');
+            editBtn.classList.add('hidden');
             removeBtn.classList.add('hidden');
             slot.classList.add('empty');
             slot.classList.remove('filled');
@@ -228,6 +248,23 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
         if (input) input.value = '';
         updateSlotVisual(index);
         onChange?.();
+    }
+
+    function handleEditImage(index) {
+        const slotRecord = imageSlotState[index];
+        if (!slotRecord || !slotRecord.data || !slotRecord.data.preview) return;
+        
+        const imageSrc = slotRecord.data.preview;
+        
+        new ImageEditor(imageSrc, async (blob) => {
+            // Convert blob to file
+            const fileName = slotRecord.data.file?.name || slotRecord.data.cached?.name || `edited-${index + 1}.png`;
+            const file = new File([blob], fileName, { type: blob.type || 'image/png' });
+            
+            // Update the slot with the edited image
+            // Treat edited images as new uploads so they are sent as files (not paths)
+            handleSlotFile(index, file, null);
+        });
     }
 
     function maybeAddSlot() {
