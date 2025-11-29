@@ -1701,6 +1701,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const historySourceBtns = document.querySelectorAll('.history-source-btn');
     const initialSource = gallery.getCurrentSource ? gallery.getCurrentSource() : 'generated';
 
+    function syncHistoryControlsFromGallery() {
+        const activeFilter = gallery.getCurrentFilter ? gallery.getCurrentFilter() : 'all';
+        historyFilterBtns.forEach(btn => {
+            if (btn.classList.contains('history-favorites-btn')) return;
+            const isActive = btn.dataset.filter === activeFilter;
+            btn.classList.toggle('active', isActive);
+        });
+
+        if (historyFavoritesBtn && gallery.isFavoritesActive) {
+            historyFavoritesBtn.classList.toggle('active', gallery.isFavoritesActive());
+        }
+
+        const historySearchInputEl = document.getElementById('history-search-input');
+        if (historySearchInputEl && gallery.getSearchQuery) {
+            historySearchInputEl.value = gallery.getSearchQuery();
+        }
+    }
+
     historySourceBtns.forEach(btn => {
         const isActive = btn.dataset.source === initialSource;
         btn.classList.toggle('active', isActive);
@@ -1713,41 +1731,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 b.classList.toggle('active', active);
                 b.setAttribute('aria-pressed', String(active));
             });
-            await gallery.setSource(targetSource, { resetFilters: true });
-
-            // Reset filters UI to show all when switching source
-            historyFilterBtns.forEach(b => {
-                if (!b.classList.contains('history-favorites-btn')) {
-                    b.classList.toggle('active', b.dataset.filter === 'all');
-                }
-            });
-
-            // Disable favorites toggle on source change
-            if (historyFavoritesBtn) {
-                historyFavoritesBtn.classList.remove('active');
-            }
-            if (gallery.setFavoritesActive) {
-                gallery.setFavoritesActive(false);
-            }
-
-            // Clear search box
-            const historySearchInputEl = document.getElementById('history-search-input');
-            if (historySearchInputEl) {
-                historySearchInputEl.value = '';
-            }
-            if (gallery.setSearchQuery) {
-                gallery.setSearchQuery('');
-            }
+            await gallery.setSource(targetSource, { resetFilters: false });
+            syncHistoryControlsFromGallery();
         });
     });
 
     // Set initial active state based on saved filter
-    const currentFilter = gallery.getCurrentFilter();
-    historyFilterBtns.forEach(btn => {
-        if (btn.dataset.filter === currentFilter && !btn.classList.contains('history-favorites-btn')) {
-            btn.classList.add('active');
-        }
-    });
+    syncHistoryControlsFromGallery();
 
     // Handle favorites button as toggle
     if (historyFavoritesBtn) {

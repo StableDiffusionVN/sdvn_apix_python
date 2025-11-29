@@ -3,32 +3,96 @@ import { extractMetadataFromBlob } from './metadata.js';
 
 const FILTER_STORAGE_KEY = 'gemini-app-history-filter';
 const SEARCH_STORAGE_KEY = 'gemini-app-history-search';
+const FAVORITES_STORAGE_KEY = 'gemini-app-history-favorites';
 const SOURCE_STORAGE_KEY = 'gemini-app-history-source';
 const VALID_SOURCES = ['generated', 'uploads'];
+const DEFAULT_STATE = {
+    filter: 'all',
+    search: '',
+    favorites: false,
+};
+
+function createStateMap(fallback) {
+    return {
+        generated: fallback,
+        uploads: fallback,
+    };
+}
+
+function parseStoredMap(key, fallback) {
+    const defaultMap = createStateMap(fallback);
+    let raw;
+    try {
+        raw = localStorage.getItem(key);
+        if (!raw) return defaultMap;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+            return {
+                generated: parsed.generated ?? parsed.default ?? fallback,
+                uploads: parsed.uploads ?? parsed.default ?? fallback,
+            };
+        }
+        // Backward compatibility: single value string or number
+        return createStateMap(raw);
+    } catch (e) {
+        // If parsing failed but raw exists, treat it as a primitive single value
+        if (raw) {
+            return createStateMap(raw);
+        }
+        console.warn('Failed to load history state', e);
+        return defaultMap;
+    }
+}
+
+function persistStateMap(key, map) {
+    try {
+        localStorage.setItem(key, JSON.stringify(map));
+    } catch (e) {
+        console.warn('Failed to save history state', e);
+    }
+}
 
 export function createGallery({ galleryGrid, onSelect }) {
-    let currentFilter = 'all';
-    let searchQuery = '';
+    let currentFilter = DEFAULT_STATE.filter;
+    let searchQuery = DEFAULT_STATE.search;
     let currentSource = 'generated';
     let allImages = [];
     let favorites = [];
-    let showOnlyFavorites = false; // New toggle state
+    let showOnlyFavorites = DEFAULT_STATE.favorites;
+    const stateBySource = {
+        generated: { ...DEFAULT_STATE },
+        uploads: { ...DEFAULT_STATE },
+    };
 
-    // Load saved filter and search from localStorage
+    // Load saved filter, search and favorites from localStorage (per source)
+    const savedFilters = parseStoredMap(FILTER_STORAGE_KEY, DEFAULT_STATE.filter);
+    const savedSearches = parseStoredMap(SEARCH_STORAGE_KEY, DEFAULT_STATE.search);
+    const savedFavorites = parseStoredMap(FAVORITES_STORAGE_KEY, DEFAULT_STATE.favorites);
+
+    stateBySource.generated.filter = savedFilters.generated;
+    stateBySource.uploads.filter = savedFilters.uploads;
+    stateBySource.generated.search = savedSearches.generated;
+    stateBySource.uploads.search = savedSearches.uploads;
+    stateBySource.generated.favorites = savedFavorites.generated;
+    stateBySource.uploads.favorites = savedFavorites.uploads;
+
     try {
-        const savedFilter = localStorage.getItem(FILTER_STORAGE_KEY);
-        if (savedFilter) currentFilter = savedFilter;
-        
-        const savedSearch = localStorage.getItem(SEARCH_STORAGE_KEY);
-        if (savedSearch) searchQuery = savedSearch;
-
         const savedSource = localStorage.getItem(SOURCE_STORAGE_KEY);
         if (savedSource && VALID_SOURCES.includes(savedSource)) {
             currentSource = savedSource;
         }
     } catch (e) {
-        console.warn('Failed to load history filter/search', e);
+        console.warn('Failed to load history source', e);
     }
+
+    function applySourceState(source) {
+        const state = stateBySource[source] || DEFAULT_STATE;
+        currentFilter = state.filter ?? DEFAULT_STATE.filter;
+        searchQuery = state.search ?? DEFAULT_STATE.search;
+        showOnlyFavorites = state.favorites ?? DEFAULT_STATE.favorites;
+    }
+
+    applySourceState(currentSource);
 
     // Load favorites from backend
     async function loadFavorites() {
@@ -306,32 +370,35 @@ export function createGallery({ galleryGrid, onSelect }) {
     function setFilter(filterType) {
         if (currentFilter === filterType) return;
         currentFilter = filterType;
+        stateBySource[currentSource].filter = filterType;
         
-        // Save to localStorage
-        try {
-            localStorage.setItem(FILTER_STORAGE_KEY, filterType);
-        } catch (e) {
-            console.warn('Failed to save history filter', e);
-        }
+        persistStateMap(FILTER_STORAGE_KEY, {
+            generated: stateBySource.generated.filter,
+            uploads: stateBySource.uploads.filter,
+        });
         
         renderGallery();
     }
 
     function setSearch(query) {
         searchQuery = query || '';
+        stateBySource[currentSource].search = searchQuery;
         
-        // Save to localStorage
-        try {
-            localStorage.setItem(SEARCH_STORAGE_KEY, searchQuery);
-        } catch (e) {
-            console.warn('Failed to save history search', e);
-        }
+        persistStateMap(SEARCH_STORAGE_KEY, {
+            generated: stateBySource.generated.search,
+            uploads: stateBySource.uploads.search,
+        });
         
         renderGallery();
     }
 
     function toggleFavorites() {
         showOnlyFavorites = !showOnlyFavorites;
+        stateBySource[currentSource].favorites = showOnlyFavorites;
+        persistStateMap(FAVORITES_STORAGE_KEY, {
+            generated: stateBySource.generated.favorites,
+            uploads: stateBySource.uploads.favorites,
+        });
         renderGallery();
         return showOnlyFavorites;
     }
@@ -345,16 +412,21 @@ export function createGallery({ galleryGrid, onSelect }) {
             console.warn('Failed to save history source', e);
         }
         if (resetFilters) {
-            currentFilter = 'all';
-            showOnlyFavorites = false;
-            searchQuery = '';
-            try {
-                localStorage.setItem(FILTER_STORAGE_KEY, currentFilter);
-                localStorage.setItem(SEARCH_STORAGE_KEY, searchQuery);
-            } catch (e) {
-                console.warn('Failed to reset history filters', e);
-            }
+            stateBySource[currentSource] = { ...DEFAULT_STATE };
+            persistStateMap(FILTER_STORAGE_KEY, {
+                generated: stateBySource.generated.filter,
+                uploads: stateBySource.uploads.filter,
+            });
+            persistStateMap(SEARCH_STORAGE_KEY, {
+                generated: stateBySource.generated.search,
+                uploads: stateBySource.uploads.search,
+            });
+            persistStateMap(FAVORITES_STORAGE_KEY, {
+                generated: stateBySource.generated.favorites,
+                uploads: stateBySource.uploads.favorites,
+            });
         }
+        applySourceState(currentSource);
         return load();
     }
 
@@ -376,6 +448,11 @@ export function createGallery({ galleryGrid, onSelect }) {
 
     function setFavoritesActive(active) {
         showOnlyFavorites = Boolean(active);
+        stateBySource[currentSource].favorites = showOnlyFavorites;
+        persistStateMap(FAVORITES_STORAGE_KEY, {
+            generated: stateBySource.generated.favorites,
+            uploads: stateBySource.uploads.favorites,
+        });
         renderGallery();
         return showOnlyFavorites;
     }
