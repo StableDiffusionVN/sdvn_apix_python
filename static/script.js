@@ -1713,30 +1713,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 b.classList.toggle('active', active);
                 b.setAttribute('aria-pressed', String(active));
             });
-            await gallery.setSource(targetSource, { resetFilters: true });
+            await gallery.setSource(targetSource, { resetFilters: false });
 
-            // Reset filters UI to show all when switching source
+            // Sync UI with persisted state (filter, favorites, search)
+            const activeFilter = gallery.getCurrentFilter ? gallery.getCurrentFilter() : 'all';
             historyFilterBtns.forEach(b => {
                 if (!b.classList.contains('history-favorites-btn')) {
-                    b.classList.toggle('active', b.dataset.filter === 'all');
+                    const isFilterActive = b.dataset.filter === activeFilter;
+                    b.classList.toggle('active', isFilterActive);
                 }
             });
 
-            // Disable favorites toggle on source change
-            if (historyFavoritesBtn) {
-                historyFavoritesBtn.classList.remove('active');
-            }
-            if (gallery.setFavoritesActive) {
-                gallery.setFavoritesActive(false);
+            if (historyFavoritesBtn && gallery.isFavoritesActive) {
+                historyFavoritesBtn.classList.toggle('active', gallery.isFavoritesActive());
             }
 
-            // Clear search box
             const historySearchInputEl = document.getElementById('history-search-input');
-            if (historySearchInputEl) {
-                historySearchInputEl.value = '';
-            }
-            if (gallery.setSearchQuery) {
-                gallery.setSearchQuery('');
+            if (historySearchInputEl && gallery.getSearchQuery) {
+                historySearchInputEl.value = gallery.getSearchQuery();
             }
         });
     });

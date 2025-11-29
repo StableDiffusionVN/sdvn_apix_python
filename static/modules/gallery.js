@@ -1,34 +1,68 @@
 import { withCacheBuster } from './utils.js';
 import { extractMetadataFromBlob } from './metadata.js';
 
-const FILTER_STORAGE_KEY = 'gemini-app-history-filter';
-const SEARCH_STORAGE_KEY = 'gemini-app-history-search';
+const GALLERY_STATE_KEY = 'gemini-app-gallery-state';
+const FILTER_STORAGE_KEY = 'gemini-app-history-filter';   // legacy (single-state)
+const SEARCH_STORAGE_KEY = 'gemini-app-history-search';   // legacy (single-state)
 const SOURCE_STORAGE_KEY = 'gemini-app-history-source';
 const VALID_SOURCES = ['generated', 'uploads'];
 
 export function createGallery({ galleryGrid, onSelect }) {
-    let currentFilter = 'all';
-    let searchQuery = '';
     let currentSource = 'generated';
     let allImages = [];
     let favorites = [];
-    let showOnlyFavorites = false; // New toggle state
+    let perSourceState = {
+        generated: { filter: 'all', search: '', favoritesOnly: false },
+        uploads: { filter: 'all', search: '', favoritesOnly: false },
+    };
 
-    // Load saved filter and search from localStorage
+    const persistState = () => {
+        try {
+            localStorage.setItem(GALLERY_STATE_KEY, JSON.stringify({
+                sourceState: perSourceState,
+                source: currentSource,
+            }));
+        } catch (e) {
+            console.warn('Failed to persist gallery state', e);
+        }
+    };
+
+    // Load saved state (with legacy fallback)
     try {
-        const savedFilter = localStorage.getItem(FILTER_STORAGE_KEY);
-        if (savedFilter) currentFilter = savedFilter;
-        
-        const savedSearch = localStorage.getItem(SEARCH_STORAGE_KEY);
-        if (savedSearch) searchQuery = savedSearch;
+        const saved = localStorage.getItem(GALLERY_STATE_KEY);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed?.sourceState) {
+                perSourceState = {
+                    generated: { filter: 'all', search: '', favoritesOnly: false, ...(parsed.sourceState.generated || {}) },
+                    uploads: { filter: 'all', search: '', favoritesOnly: false, ...(parsed.sourceState.uploads || {}) },
+                };
+            }
+            if (parsed?.source && VALID_SOURCES.includes(parsed.source)) {
+                currentSource = parsed.source;
+            }
+        } else {
+            // Legacy fallback (single state)
+            const savedFilter = localStorage.getItem(FILTER_STORAGE_KEY);
+            const savedSearch = localStorage.getItem(SEARCH_STORAGE_KEY);
+            if (savedFilter) perSourceState.generated.filter = savedFilter;
+            if (savedSearch) perSourceState.generated.search = savedSearch;
+        }
 
         const savedSource = localStorage.getItem(SOURCE_STORAGE_KEY);
         if (savedSource && VALID_SOURCES.includes(savedSource)) {
             currentSource = savedSource;
         }
     } catch (e) {
-        console.warn('Failed to load history filter/search', e);
+        console.warn('Failed to load gallery state', e);
     }
+
+    const getState = (source = currentSource) => {
+        if (!perSourceState[source]) {
+            perSourceState[source] = { filter: 'all', search: '', favoritesOnly: false };
+        }
+        return perSourceState[source];
+    };
 
     // Load favorites from backend
     async function loadFavorites() {
@@ -118,27 +152,29 @@ export function createGallery({ galleryGrid, onSelect }) {
     }
 
     function matchesSearch(imageUrl) {
-        if (!searchQuery) return true;
+        const { search } = getState();
+        if (!search) return true;
         const filename = imageUrl.split('/').pop().split('?')[0];
-        return filename.toLowerCase().includes(searchQuery.toLowerCase());
+        return filename.toLowerCase().includes(search.toLowerCase());
     }
 
     function shouldShowImage(imageUrl) {
+        const state = getState();
         // First check text search
         if (!matchesSearch(imageUrl)) return false;
         
         // Check favorites toggle - if enabled, only show favorites
-        if (showOnlyFavorites && !isFavorite(imageUrl)) {
+        if (state.favoritesOnly && !isFavorite(imageUrl)) {
             return false;
         }
         
         // Then check date filter
-        if (currentFilter === 'all') return true;
+        if (state.filter === 'all') return true;
         
         const timestamp = getFileTimestamp(imageUrl);
-        if (!timestamp) return currentFilter === 'all';
+        if (!timestamp) return state.filter === 'all';
         
-        switch (currentFilter) {
+        switch (state.filter) {
             case 'today':
                 return isToday(timestamp);
             case 'week':
@@ -305,35 +341,33 @@ export function createGallery({ galleryGrid, onSelect }) {
 
     function setFilter(filterType) {
         if (currentFilter === filterType) return;
-        currentFilter = filterType;
-        
-        // Save to localStorage
-        try {
-            localStorage.setItem(FILTER_STORAGE_KEY, filterType);
-        } catch (e) {
-            console.warn('Failed to save history filter', e);
-        }
-        
+        const state = getState();
+        state.filter = filterType;
+        persistState();
         renderGallery();
     }
 
     function setSearch(query) {
-        searchQuery = query || '';
-        
-        // Save to localStorage
-        try {
-            localStorage.setItem(SEARCH_STORAGE_KEY, searchQuery);
-        } catch (e) {
-            console.warn('Failed to save history search', e);
-        }
-        
+        const state = getState();
+        state.search = query || '';
+        persistState();
         renderGallery();
     }
 
     function toggleFavorites() {
-        showOnlyFavorites = !showOnlyFavorites;
+        const state = getState();
+        state.favoritesOnly = !state.favoritesOnly;
+        persistState();
         renderGallery();
-        return showOnlyFavorites;
+        return state.favoritesOnly;
+    }
+
+    function setFavoritesActive(active) {
+        const state = getState();
+        state.favoritesOnly = Boolean(active);
+        persistState();
+        renderGallery();
+        return state.favoritesOnly;
     }
 
     function setSource(source, { resetFilters = false } = {}) {
@@ -345,25 +379,22 @@ export function createGallery({ galleryGrid, onSelect }) {
             console.warn('Failed to save history source', e);
         }
         if (resetFilters) {
-            currentFilter = 'all';
-            showOnlyFavorites = false;
-            searchQuery = '';
-            try {
-                localStorage.setItem(FILTER_STORAGE_KEY, currentFilter);
-                localStorage.setItem(SEARCH_STORAGE_KEY, searchQuery);
-            } catch (e) {
-                console.warn('Failed to reset history filters', e);
-            }
+            const state = getState();
+            state.filter = 'all';
+            state.favoritesOnly = false;
+            state.search = '';
+            persistState();
         }
+        persistState();
         return load();
     }
 
     function getCurrentFilter() {
-        return currentFilter;
+        return getState().filter;
     }
 
     function getSearchQuery() {
-        return searchQuery;
+        return getState().search;
     }
 
     function getCurrentSource() {
@@ -371,13 +402,7 @@ export function createGallery({ galleryGrid, onSelect }) {
     }
 
     function isFavoritesActive() {
-        return showOnlyFavorites;
-    }
-
-    function setFavoritesActive(active) {
-        showOnlyFavorites = Boolean(active);
-        renderGallery();
-        return showOnlyFavorites;
+        return getState().favoritesOnly;
     }
 
     function setSearchQuery(value) {
