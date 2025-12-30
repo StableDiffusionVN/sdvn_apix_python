@@ -2,3 +2,5 @@ flask
 google-genai
 pillow
 Send2Trash
+gallery-dl
+requests

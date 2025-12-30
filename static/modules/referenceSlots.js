@@ -340,11 +340,29 @@ export function createReferenceSlotManager(imageInputGrid, options = {}) {
         return null;
     }
 
+    async function addReferenceFromUrl(url) {
+        // Find first empty slot
+        let emptyIndex = imageSlotState.findIndex(record => !record.data);
+        
+        if (emptyIndex === -1) {
+            if (imageSlotState.length < MAX_IMAGE_SLOTS) {
+                addImageSlot();
+                emptyIndex = imageSlotState.length - 1;
+            } else {
+                return false;
+            }
+        }
+        
+        await handleSlotDropFromHistory(emptyIndex, url);
+        return true;
+    }
+
     return {
         initialize,
         getReferenceFiles,
         getReferencePaths,
         serializeReferenceImages,
         setReferenceImages,
+        addReferenceFromUrl,
     };
 }

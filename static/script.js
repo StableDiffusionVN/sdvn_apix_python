@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadLink = document.getElementById('download-link');
     const galleryGrid = document.getElementById('gallery-grid');
     const imageInputGrid = document.getElementById('image-input-grid');
+    const referenceUrlInput = document.getElementById('reference-url-input');
     const imageDisplayArea = document.querySelector('.image-display-area');
     const canvasToolbar = document.querySelector('.canvas-toolbar');
     const sidebar = document.querySelector('.sidebar');
@@ -2119,6 +2120,54 @@ document.addEventListener('DOMContentLoaded', () => {
             document.removeEventListener('pointerup', stopResize);
             document.removeEventListener('pointercancel', stopResize);
         };
+    }
+
+    // Reference URL Input Logic
+    if (referenceUrlInput && typeof slotManager !== 'undefined') {
+        referenceUrlInput.addEventListener('keydown', async (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const url = referenceUrlInput.value.trim();
+                if (!url) return;
+
+                referenceUrlInput.disabled = true;
+                const originalPlaceholder = referenceUrlInput.getAttribute('placeholder');
+                referenceUrlInput.setAttribute('placeholder', 'Đang tải...');
+
+                try {
+                    const response = await fetch('/download_image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to download image');
+                    }
+
+                    if (data.path) {
+                        const success = await slotManager.addReferenceFromUrl(data.path);
+                        if (success) {
+                            referenceUrlInput.value = '';
+                        } else {
+                            alert('Không còn slot trống cho ảnh tham chiếu.');
+                        }
+                    } else {
+                         throw new Error('No image path returned');
+                    }
+
+                } catch (error) {
+                    console.error('Download error:', error);
+                    alert(`Lỗi tải ảnh: ${error.message}`);
+                } finally {
+                    referenceUrlInput.disabled = false;
+                    referenceUrlInput.setAttribute('placeholder', originalPlaceholder);
+                    referenceUrlInput.focus();
+                }
+            }
+        });
     }
 
 });

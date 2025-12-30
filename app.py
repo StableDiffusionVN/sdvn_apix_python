@@ -11,6 +11,8 @@ from flask import Flask, render_template, request, jsonify, url_for
 from google import genai
 from google.genai import types
 from PIL import Image, PngImagePlugin
+import threading, time, subprocess, re
+
 
 import logging
 
@@ -1157,10 +1159,144 @@ def refine_prompt():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+#Tun sever
+
+@app.route('/download_image', methods=['POST'])
+def download_image():
+    import requests
+    from urllib.parse import urlparse
+
+    data = request.get_json() or {}
+    url = data.get('url')
+    
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+
+    try:
+        download_url = url
+        
+        # Check if it's a URL (http/https)
+        if url.startswith('http://') or url.startswith('https://'):
+            # Try to use gallery-dl to extract the image URL
+            try:
+                # -g: get URLs, -q: quiet
+                cmd = ['gallery-dl', '-g', '-q', url]
+                # Timeout to prevent hanging on slow sites
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    urls = result.stdout.strip().split('\n')
+                    if urls and urls[0] and urls[0].startswith('http'):
+                        download_url = urls[0]
+            except Exception as e:
+                print(f"gallery-dl extraction failed (using direct URL): {e}")
+                # Fallback to using the original URL directly
+        
+        # Download logic (for both direct URL and extracted URL)
+        if download_url.startswith('http://') or download_url.startswith('https://'):
+            response = requests.get(download_url, timeout=30)
+            response.raise_for_status()
+            
+            content_type = response.headers.get('content-type', '')
+            ext = '.png'
+            if 'image/jpeg' in content_type: ext = '.jpg'
+            elif 'image/webp' in content_type: ext = '.webp'
+            elif 'image/gif' in content_type: ext = '.gif'
+            else:
+                parsed = urlparse(download_url)
+                ext = os.path.splitext(parsed.path)[1] or '.png'
+
+            filename = f"{uuid.uuid4()}{ext}"
+            filepath = os.path.join(UPLOADS_DIR, filename)
+            
+            with open(filepath, 'wb') as f:
+                f.write(response.content)
+                
+            rel_path = f"uploads/{filename}"
+            final_url = url_for('static', filename=rel_path)
+            
+            return jsonify({'path': final_url, 'local_path': filepath})
+            
+        else:
+            # Handle local file path
+            # Remove quotes if present
+            clean_path = url.strip('"\'')
+            
+            if os.path.exists(clean_path):
+                 ext = os.path.splitext(clean_path)[1] or '.png'
+                 filename = f"{uuid.uuid4()}{ext}"
+                 filepath = os.path.join(UPLOADS_DIR, filename)
+                 shutil.copy2(clean_path, filepath)
+                 
+                 rel_path = f"uploads/{filename}"
+                 final_url = url_for('static', filename=rel_path)
+                 return jsonify({'path': final_url, 'local_path': filepath})
+            else:
+                 return jsonify({'error': 'File path not found on server'}), 404
+
+    except Exception as e:
+        print(f"Error downloading image: {e}")
+        return jsonify({'error': str(e)}), 500
+
+def pinggy_thread(port,pinggy):
+
+  server = {
+      "Auto": "",
+      "USA": "us.",
+      "Europe": "eu.",
+      "Asia": "ap.",
+      "South America": "br.",
+      "Australia": "au."
+
+  }
+
+  sv = server[Sever_Pinggy]
+
+  import socket
+  while True:
+      time.sleep(0.5)
+      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      result = sock.connect_ex(('127.0.0.1', port))
+      if result == 0:
+        break
+      sock.close()
+  try:
+    if pinggy != None:
+      if ":" in pinggy:
+          pinggy, ac, ps = pinggy.split(":")
+          cmd = ["ssh", "-p", "443", f"-R0:localhost:{port}", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", f"{pinggy}@{sv}pro.pinggy.io", f'\"b:{ac}:{ps}\"']
+      else:
+          cmd = ["ssh", "-p", "443", f"-R0:localhost:{port}", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", f"{pinggy}@{sv}pro.pinggy.io"]
+    else:
+      cmd = ["ssh", "-p", "443", "-L4300:localhost:4300", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", f"-R0:localhost:{port}", "free.pinggy.io"]
+    process = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    for line in iter(process.stdout.readline, ''):
+        match = re.search(r'(https?://[^\s]+)', line)
+        if match:
+            url = match.group(1)
+            # Bỏ qua các link dashboard
+            if "dashboard.pinggy.io" in url:
+                continue
+            print(f"\033[92m🔗 Link online để sử dụng:\033[0m {url}")
+            if pinggy == None:
+              html="<div><code style='color:yellow'>Link pinggy free hoạt động trong 60phút, khởi động lại hoặc đăng ký tại [dashboard.pinggy.io] để lấy token, nhập custom pinggy trong tệp Domain_sever.txt trên drive theo cú pháp 'pinggy-{token}'</code></div>"
+              display(HTML(html))
+            break
+  except Exception as e:
+      print(f"❌ Lỗi: {e}")
+
+def sever_flare(port, pinggy = None):
+  threading.Thread(target=pinggy_thread, daemon=True, args=(port,pinggy,)).start()
+
+
 port_sever = 8888
+Sever_Pinggy = "Auto"
+
 if __name__ == '__main__':
     # Use ANSI green text so the startup banner stands out in terminals
     print("\033[32m" + "aPix Image Workspace running at:" + "\033[0m", flush=True)
     print("\033[32m" + f"http://localhost:{port_sever}" + "   " + "\033[0m", flush=True)
     print("\033[32m" + f"http://127.0.0.1:{port_sever}" + "\033[0m", flush=True)
+
+    # sever_flare(port_sever, "cXPggKvHuW:sdvn:1231")
     app.run(debug=True, port=port_sever)
