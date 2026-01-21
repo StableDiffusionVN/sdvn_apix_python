@@ -2110,6 +2110,32 @@ button#generate-btn:disabled {
     animation: spin 1s linear infinite;
 }
 
+.queue-cancel-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.queue-cancel-btn:hover {
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.12);
+}
+
+.queue-cancel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 @keyframes spin {
     from {
         transform: rotate(0deg);

@@ -707,10 +707,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const queueCounter = document.getElementById('queue-counter');
     const queueCountText = document.getElementById('queue-count-text');
+    const queueCancelBtn = document.getElementById('queue-cancel-btn');
 
     let generationQueue = [];
     let isProcessingQueue = false;
     let pendingRequests = 0; // Track requests waiting for backend response
+    let activeQueueController = null;
+    const pendingControllers = new Set();
 
     function updateQueueCounter() {
         // Count includes:
@@ -736,6 +739,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 queueCounter.classList.add('hidden');
             }
         }
+        if (queueCancelBtn) {
+            queueCancelBtn.disabled = !(isProcessingQueue || pendingRequests > 0);
+        }
+    }
+
+    function restoreIdleView() {
+        if (hasGeneratedImage) {
+            setViewState('result');
+            return;
+        }
+        setViewState('template-gallery');
+    }
+
+    function cancelCurrentGeneration() {
+        if (activeQueueController) {
+            activeQueueController.abort();
+            return;
+        }
+        if (pendingControllers.size > 0) {
+            const controllers = Array.from(pendingControllers);
+            const latestController = controllers[controllers.length - 1];
+            latestController?.abort();
+        }
     }
 
     async function processNextInQueue() {
@@ -750,6 +776,9 @@ document.addEventListener('DOMContentLoaded', () => {
         isProcessingQueue = true;
         updateQueueCounter(); // Show counter immediately
         
+        let wasAborted = false;
+        const controller = new AbortController();
+        activeQueueController = controller;
         try {
             setViewState('loading');
             
@@ -772,6 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch('/generate', {
                     method: 'POST',
                     body: formData,
+                    signal: controller.signal,
                 });
 
                 const data = await response.json();
@@ -802,10 +832,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (error) {
-            showError(error.message);
-            // Wait a bit before next task if error
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            if (error.name === 'AbortError') {
+                wasAborted = true;
+            } else {
+                showError(error.message);
+                // Wait a bit before next task if error
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
         } finally {
+            activeQueueController = null;
+            if (wasAborted) {
+                restoreIdleView();
+            }
             // Process next task
             processNextInQueue();
         }
@@ -840,6 +878,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let fetchCompleted = false;
 
+        const controller = new AbortController();
+        pendingControllers.add(controller);
         try {
             const formData = buildGenerateFormData({
                 prompt: prompt,
@@ -853,6 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/generate', {
                 method: 'POST',
                 body: formData,
+                signal: controller.signal,
             });
 
             const data = await response.json();
@@ -911,19 +952,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Error in addToQueue:', error);
-            
+
             // If fetch failed (didn't complete), we need to decrement pendingRequests
             if (!fetchCompleted) {
                 pendingRequests--;
             }
-            
+
             updateQueueCounter();
+
+            if (error.name === 'AbortError') {
+                restoreIdleView();
+                return;
+            }
+
             showError(error.message);
+        } finally {
+            pendingControllers.delete(controller);
         }
     }
 
     generateBtn.addEventListener('click', () => {
         addToQueue();
+    });
+
+    queueCancelBtn?.addEventListener('click', () => {
+        cancelCurrentGeneration();
     });
 
     document.addEventListener('keydown', handleGenerateShortcut);
