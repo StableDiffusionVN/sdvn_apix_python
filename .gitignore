@@ -6,3 +6,4 @@ user_prompts.json
 /static/preview
 template_favorites.json
 gallery_favorites.json
+.DS_Store
