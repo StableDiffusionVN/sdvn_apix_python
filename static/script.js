@@ -89,6 +89,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiKeyToggleBtn = document.getElementById('toggle-api-key-visibility');
     const apiKeyEyeIcon = apiKeyToggleBtn?.querySelector('.icon-eye');
     const apiKeyEyeOffIcon = apiKeyToggleBtn?.querySelector('.icon-eye-off');
+    const apiKeyLabelInput = document.getElementById('api-key-label');
+    const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+    const savedApiKeysSelect = document.getElementById('saved-api-keys');
+    const deleteApiKeyBtn = document.getElementById('delete-api-key-btn');
     const bodyFontSelect = document.getElementById('body-font');
 
     const placeholderState = document.getElementById('placeholder-state');
@@ -142,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
             if (saved) {
                 const settings = JSON.parse(saved);
+                savedApiKeys = normalizeSavedApiKeys(settings.savedApiKeys || settings.apiKeys || []);
                 if (settings.apiKey) apiKeyInput.value = settings.apiKey;
                 if (settings.prompt) promptInput.value = settings.prompt;
                 if (settings.note) promptNoteInput.value = settings.note;
@@ -180,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
             referenceImages,
             theme: currentTheme || DEFAULT_THEME,
             bodyFont: bodyFontSelect ? bodyFontSelect.value : DEFAULT_BODY_FONT,
+            savedApiKeys,
         };
         try {
             localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
@@ -238,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentPlaceholderSegments = [];
     let currentTheme = DEFAULT_THEME;
+    let savedApiKeys = [];
 
     function escapeHtml(value) {
         return value.replace(/[&<>"']/g, (char) => {
@@ -432,6 +439,69 @@ document.addEventListener('DOMContentLoaded', () => {
         applyThemeClass(initialTheme);
     }
 
+    function generateApiKeyId(index = 0) {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        return `api-${Date.now()}-${index}-${Math.floor(Math.random() * 100000)}`;
+    }
+
+    function normalizeSavedApiKeys(raw) {
+        if (!Array.isArray(raw)) return [];
+        return raw
+            .map((item, index) => {
+                if (!item) return null;
+                const key = typeof item === 'string' ? item : item.key;
+                if (!key || typeof key !== 'string') return null;
+                const label = typeof item.label === 'string' ? item.label : '';
+                const id = item.id || generateApiKeyId(index);
+                return { id, key, label };
+            })
+            .filter(Boolean);
+    }
+
+    function maskApiKey(key) {
+        if (!key) return '';
+        const compact = key.replace(/\s+/g, '');
+        if (compact.length <= 6) return `••••${compact}`;
+        return `••••${compact.slice(-6)}`;
+    }
+
+    function renderSavedApiKeyOptions(selectedId = '') {
+        if (!savedApiKeysSelect) return;
+        savedApiKeysSelect.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = savedApiKeys.length ? 'Chọn API đã lưu' : 'Chưa có API đã lưu';
+        placeholder.disabled = savedApiKeys.length === 0;
+        savedApiKeysSelect.appendChild(placeholder);
+
+        savedApiKeys.forEach((entry, index) => {
+            const option = document.createElement('option');
+            option.value = entry.id;
+            option.textContent = entry.label?.trim()
+                ? entry.label
+                : `API ${index + 1} (${maskApiKey(entry.key)})`;
+            option.title = entry.key;
+            savedApiKeysSelect.appendChild(option);
+        });
+
+        if (selectedId) {
+            savedApiKeysSelect.value = selectedId;
+        } else if (savedApiKeys.length === 0) {
+            savedApiKeysSelect.value = '';
+        }
+    }
+
+    function syncSavedApiSelection(currentKey = '') {
+        if (!savedApiKeysSelect) return;
+        const match = savedApiKeys.find(entry => entry.key === currentKey);
+        savedApiKeysSelect.value = match?.id || '';
+        if (apiKeyLabelInput) {
+            apiKeyLabelInput.value = match?.label || '';
+        }
+    }
+
     // --- End Helper Functions ---
 
     let zoomLevel = 1;
@@ -481,6 +551,54 @@ document.addEventListener('DOMContentLoaded', () => {
         content: POPUP_CONTENT,
     });
 
+    function saveCurrentApiKey() {
+        if (!apiKeyInput) return;
+        const key = apiKeyInput.value.trim();
+        if (!key) {
+            alert('Nhập API key trước khi lưu.');
+            apiKeyInput.focus();
+            return;
+        }
+        apiKeyInput.value = key;
+        const label = apiKeyLabelInput?.value.trim() || '';
+        const existingIndex = savedApiKeys.findIndex(entry => entry.key === key);
+        let selectedId = '';
+        if (existingIndex >= 0) {
+            savedApiKeys[existingIndex] = { ...savedApiKeys[existingIndex], key, label };
+            selectedId = savedApiKeys[existingIndex].id;
+        } else {
+            const id = generateApiKeyId(savedApiKeys.length);
+            savedApiKeys.push({ id, key, label });
+            selectedId = id;
+        }
+        renderSavedApiKeyOptions(selectedId);
+        syncSavedApiSelection(key);
+        persistSettings();
+    }
+
+    function handleSavedApiKeySelection(event) {
+        const selectedId = event?.target?.value || '';
+        if (!selectedId) return;
+        const match = savedApiKeys.find(entry => entry.id === selectedId);
+        if (!match) return;
+        apiKeyInput.value = match.key;
+        if (apiKeyLabelInput) {
+            apiKeyLabelInput.value = match.label || '';
+        }
+        persistSettings();
+        refreshApiKeyVisibility();
+    }
+
+    function deleteSelectedApiKey() {
+        if (!savedApiKeysSelect) return;
+        const selectedId = savedApiKeysSelect.value;
+        if (!selectedId) return;
+        savedApiKeys = savedApiKeys.filter(entry => entry.id !== selectedId);
+        renderSavedApiKeyOptions('');
+        syncSavedApiSelection(apiKeyInput?.value || '');
+        persistSettings();
+    }
+
     const openApiSettings = () => {
         if (!apiSettingsOverlay) return;
         apiSettingsOverlay.classList.remove('hidden');
@@ -495,6 +613,9 @@ document.addEventListener('DOMContentLoaded', () => {
     openApiSettingsBtn?.addEventListener('click', openApiSettings);
     apiSettingsCloseBtn?.addEventListener('click', closeApiSettings);
     saveApiSettingsBtn?.addEventListener('click', closeApiSettings);
+    saveApiKeyBtn?.addEventListener('click', saveCurrentApiKey);
+    savedApiKeysSelect?.addEventListener('change', handleSavedApiKeySelection);
+    deleteApiKeyBtn?.addEventListener('click', deleteSelectedApiKey);
 
     apiSettingsOverlay?.addEventListener('click', (event) => {
         if (event.target === apiSettingsOverlay) {
@@ -510,13 +631,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const savedSettings = loadSettings();
+    renderSavedApiKeyOptions();
+    syncSavedApiSelection(apiKeyInput?.value || '');
     renderThemeOptions(currentTheme || DEFAULT_THEME);
     applyThemeClass(currentTheme || DEFAULT_THEME);
     slotManager.initialize(savedSettings.referenceImages || []);
     refreshPromptHighlight();
     applyBodyFont(savedSettings.bodyFont || DEFAULT_BODY_FONT);
 
-    apiKeyInput.addEventListener('input', persistSettings);
+    apiKeyInput?.addEventListener('input', () => {
+        persistSettings();
+        syncSavedApiSelection(apiKeyInput.value.trim());
+    });
     let isApiKeyVisible = false;
 
     const refreshApiKeyVisibility = () => {

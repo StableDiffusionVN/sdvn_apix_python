@@ -326,6 +326,45 @@ a:hover {
     color: var(--accent-color);
 }
 
+.saved-api-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.saved-api-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.saved-api-row input[type="text"] {
+    flex: 1;
+}
+
+.saved-api-select-row .select-wrapper {
+    flex: 1;
+}
+
+.ghost-btn {
+    padding: 0.65rem 0.9rem;
+    border-radius: 0.55rem;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+
+.ghost-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.08);
+}
+
 label {
     font-size: 0.875rem;
     font-weight: 500;

@@ -497,6 +497,20 @@
                         <a href="https://aistudio.google.com/api-keys" target="_blank"
                             rel="noreferrer">aistudio.google.com/api-keys</a>
                     </p>
+                    <div class="saved-api-controls">
+                        <div class="saved-api-row">
+                            <input type="text" id="api-key-label" placeholder="Tên gợi nhớ (tuỳ chọn)">
+                            <button type="button" id="save-api-key-btn" class="ghost-btn">Lưu API này</button>
+                        </div>
+                        <div class="saved-api-row saved-api-select-row">
+                            <div class="select-wrapper" style="width: 100%;">
+                                <select id="saved-api-keys" aria-label="Chọn API đã lưu" style="width: 100%;">
+                                    <option value="">Chưa có API đã lưu</option>
+                                </select>
+                            </div>
+                            <button type="button" id="delete-api-key-btn" class="ghost-btn" aria-label="Xoá API đã chọn">Xoá</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="input-group api-settings-input-group">
                     <label for="api-model">Model</label>
