@@ -375,7 +375,7 @@ def generate_image():
         note = form.get('note', '')
         aspect_ratio = form.get('aspect_ratio')
         resolution = form.get('resolution', '2K')
-        model = form.get('model', 'gemini-3-pro-image-preview')
+        model = form.get('model', 'gemini-3.1-flash-image-preview')
         api_key = form.get('api_key') or os.environ.get('GOOGLE_API_KEY')
         reference_files = request.files.getlist('reference_images')
         reference_paths_json = form.get('reference_image_paths')
@@ -385,7 +385,7 @@ def generate_image():
         note = data.get('note', '')
         aspect_ratio = data.get('aspect_ratio')
         resolution = data.get('resolution', '2K')
-        model = data.get('model', 'gemini-3-pro-image-preview')
+        model = data.get('model', 'gemini-3.1-flash-image-preview')
         api_key = data.get('api_key') or os.environ.get('GOOGLE_API_KEY')
         reference_files = []
         reference_paths_json = data.get('reference_image_paths')

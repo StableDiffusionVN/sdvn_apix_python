@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (settings.aspectRatio) aspectRatioInput.value = settings.aspectRatio;
                 if (settings.resolution) resolutionInput.value = settings.resolution;
                 if (apiModelSelect) {
-                    apiModelSelect.value = settings.model || apiModelSelect.value || 'gemini-3-pro-image-preview';
+                    apiModelSelect.value = settings.model || apiModelSelect.value || 'gemini-3.1-flash-image-preview';
                     toggleResolutionVisibility();
                 }
                 currentTheme = settings.theme || DEFAULT_THEME;
@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
             note: promptNoteInput.value,
             aspectRatio: aspectRatioInput.value,
             resolution: resolutionInput.value,
-            model: apiModelSelect ? apiModelSelect.value : 'gemini-3-pro-image-preview',
+            model: apiModelSelect ? apiModelSelect.value : 'gemini-3.1-flash-image-preview',
             referenceImages,
             theme: currentTheme || DEFAULT_THEME,
             bodyFont: bodyFontSelect ? bodyFontSelect.value : DEFAULT_BODY_FONT,
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('aspect_ratio', aspect_ratio);
         formData.append('resolution', resolution);
         formData.append('api_key', api_key);
-        const selectedModel = model || (apiModelSelect ? apiModelSelect.value : 'gemini-3-pro-image-preview');
+        const selectedModel = model || (apiModelSelect ? apiModelSelect.value : 'gemini-3.1-flash-image-preview');
         formData.append('model', selectedModel);
 
         // Add reference images using correct slotManager methods
@@ -855,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const aspectRatio = aspectRatioInput.value;
         const resolution = resolutionInput.value;
         const apiKey = apiKeyInput.value.trim();
-        const selectedModel = apiModelSelect?.value || 'gemini-3-pro-image-preview';
+        const selectedModel = apiModelSelect?.value || 'gemini-3.1-flash-image-preview';
 
         if (!apiKey) {
             openApiSettings();
